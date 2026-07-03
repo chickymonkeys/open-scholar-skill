@@ -15,6 +15,13 @@
 #   - The standard data dirs that exist: data/raw, data/interim, data/processed.
 #   - (Claude only, v1) any sidecar file marked LOCAL_MODE / HALTED /
 #     NEEDS_REVIEW that lives OUTSIDE those dirs (added as an absolute denyRead).
+#   - The RESOLVED TARGETS of symlinks under the data dirs and of restricted
+#     sidecar keys (scholar-init --link projects): the kernel evaluates the
+#     resolved path of an open(), so denying only ./data/raw/** lets
+#     `cat data/raw/link.csv` read the out-of-tree target. File targets are
+#     denied directly; directory targets as <dir> + <dir>/**. Targets outside
+#     the project remain uncovered on the Codex host (its profile is
+#     workspace-relative) and are counted in the NOTE output.
 #
 # THE LOCKDOWN TENSION (honest): denyRead blocks ALL reads of data/ at the OS
 #   level — including a sanctioned LOCAL_MODE `Rscript` that must read the raw
@@ -89,7 +96,65 @@ if [ -f "$SIDE" ]; then
   done < <(jq -r 'to_entries[] | select(.key|type=="string") | select(.value|type=="string") | select(.value|test("LOCAL_MODE|HALTED|NEEDS_REVIEW")) | .key' "$SIDE" 2>/dev/null)
 fi
 
-if [ "${#DATA_DIRS[@]}" -eq 0 ] && [ "${#EXTRA_ABS[@]}" -eq 0 ]; then
+# ── Symlink-escape closure ───────────────────────────────────────────────
+# The relative deny globs above cover the in-project PATHS (./data/raw/**),
+# but the kernel sandbox evaluates the RESOLVED path of an open(): a symlink
+# data/raw/x.dta -> /elsewhere/x.dta escapes a path-scoped deny — the rule
+# matches the link, not the bytes. scholar-init --link projects are built
+# exactly this way. The sidecar loop above likewise skips keys under data/*
+# on the assumption the glob covers them — untrue when the entry is a
+# symlink. Close both holes: resolve every symlink under the data dirs AND
+# every restricted sidecar key, then deny the resolved targets too (files
+# directly; directory targets as <dir> + <dir>/** in the Claude denyRead).
+_rp() {  # realpath that never fails the script: python3 → realpath → readlink -f → ""
+  local t="$1" r=""
+  [ -n "$t" ] || { printf ''; return 0; }
+  if command -v python3 >/dev/null 2>&1; then
+    r="$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$t" 2>/dev/null || true)"
+  fi
+  [ -n "$r" ] || r="$(realpath "$t" 2>/dev/null || true)"
+  [ -n "$r" ] || r="$(readlink -f "$t" 2>/dev/null || true)"
+  printf '%s' "$r"
+}
+RESOLVED_DIRS=()
+_SEEN_RESOLVED="|"
+# Seed the dedupe set with the lexical EXTRA_ABS entries so a resolved
+# target equal to an already-listed sidecar key is not added twice (a
+# duplicate would render a duplicate TOML key in the Codex profile).
+for _e in ${EXTRA_ABS[@]+"${EXTRA_ABS[@]}"}; do _SEEN_RESOLVED="${_SEEN_RESOLVED}${_e}|"; done
+_add_resolved() {  # $1 = resolved absolute target (may be empty)
+  local t="$1"
+  [ -n "$t" ] || return 0
+  # Already covered by the relative ./data globs? (compare canonically)
+  case "$t" in
+    "$PROJ_ABS/data/raw"|"$PROJ_ABS/data/raw/"*|\
+    "$PROJ_ABS/data/interim"|"$PROJ_ABS/data/interim/"*|\
+    "$PROJ_ABS/data/processed"|"$PROJ_ABS/data/processed/"*) return 0 ;;
+  esac
+  case "$_SEEN_RESOLVED" in *"|$t|"*) return 0 ;; esac
+  _SEEN_RESOLVED="${_SEEN_RESOLVED}${t}|"
+  if [ -d "$t" ]; then RESOLVED_DIRS+=("$t"); else EXTRA_ABS+=("$t"); fi
+}
+for d in ${DATA_DIRS[@]+"${DATA_DIRS[@]}"}; do
+  # find does not follow a symlinked start dir (it prints the link itself),
+  # which is exactly right: a symlinked data/interim resolves to one target
+  # dir that we deny wholesale.
+  while IFS= read -r _l; do
+    [ -n "$_l" ] || continue
+    _add_resolved "$(_rp "$_l")"
+  done < <(find "$PROJ/$d" -type l 2>/dev/null)
+done
+if [ -f "$SIDE" ]; then
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    _rpv="$(_rp "$p")"
+    if [ -n "$_rpv" ] && [ "$_rpv" != "$p" ]; then
+      _add_resolved "$_rpv"
+    fi
+  done < <(jq -r 'to_entries[] | select(.key|type=="string") | select(.value|type=="string") | select(.value|test("LOCAL_MODE|HALTED|NEEDS_REVIEW")) | .key' "$SIDE" 2>/dev/null)
+fi
+
+if [ "${#DATA_DIRS[@]}" -eq 0 ] && [ "${#EXTRA_ABS[@]}" -eq 0 ] && [ "${#RESOLVED_DIRS[@]}" -eq 0 ]; then
   echo "generate-lockdown-config: no data dirs or restricted sidecar files found under $PROJ — nothing to deny." >&2
   echo "  (Create data/raw|interim|processed or run /scholar-init first.)" >&2
   exit 1
@@ -103,9 +168,11 @@ gen_claude() {
   mkdir -p "$PROJ/.claude"
   # Build the denyRead array: relative data-dir globs + absolute extra files.
   local deny_json; deny_json="$(
-    { for d in "${DATA_DIRS[@]}"; do printf '%s\n' "./$d" "./$d/**"; done
-      for a in "${EXTRA_ABS[@]}"; do printf '%s\n' "$a"; done
-    } | jq -R . | jq -s .
+    { for d in ${DATA_DIRS[@]+"${DATA_DIRS[@]}"}; do printf '%s\n' "./$d" "./$d/**"; done
+      for a in ${EXTRA_ABS[@]+"${EXTRA_ABS[@]}"}; do printf '%s\n' "$a"; done
+      # Resolved symlink-target dirs: deny the dir and its whole subtree.
+      for t in ${RESOLVED_DIRS[@]+"${RESOLVED_DIRS[@]}"}; do printf '%s\n' "$t" "$t/**"; done
+    } | jq -R . | jq -s 'unique'
   )"
   local unsandboxed; [ "$ESCALATION" = "true" ] && unsandboxed=true || unsandboxed=false
   # The sandbox object we want to ensure. Merge NON-DESTRUCTIVELY: preserve any
@@ -122,7 +189,7 @@ gen_claude() {
   local tmp; tmp="$(mktemp)"
   printf '%s' "$base" | jq --argjson s "$sandbox_obj" '. * $s' > "$tmp" && mv "$tmp" "$settings"
   echo "generate-lockdown-config: wrote sandbox denyRead to $settings ($([ "$ESCALATION" = "true" ] && echo 'escalation ALLOWED' || echo 'HARD wall, no escalation'))"
-  echo "  denied: ${DATA_DIRS[*]:-<none>}${EXTRA_ABS:+ + ${#EXTRA_ABS[@]} sidecar file(s)}"
+  echo "  denied: ${DATA_DIRS[*]:-<none>}${EXTRA_ABS:+ + ${#EXTRA_ABS[@]} sidecar/symlink-target file(s)}${RESOLVED_DIRS:+ + ${#RESOLVED_DIRS[@]} symlink-target dir(s)}"
   echo "  → RESTART Claude Code to activate (settings are snapshotted at session start)."
   [ "$ESCALATION" = "true" ] || echo "  → NOTE: this also blocks LOCAL_MODE Rscript reads. Run analysis before locking, or use --allow-escalation."
 }
@@ -139,7 +206,7 @@ gen_codex() {
   # resolve OUTSIDE the project entirely are still not covered (Codex
   # workspace-relative scoping does not reach them) and are reported below.
   local EXTRA_DENY_LINES="" _outside=0 _a _rel
-  for _a in ${EXTRA_ABS[@]+"${EXTRA_ABS[@]}"}; do
+  for _a in ${EXTRA_ABS[@]+"${EXTRA_ABS[@]}"} ${RESOLVED_DIRS[@]+"${RESOLVED_DIRS[@]}"}; do
     [ -n "$_a" ] || continue
     case "$_a" in
       "$PROJ_ABS/"*) _rel="${_a#"$PROJ_ABS"/}"; EXTRA_DENY_LINES="${EXTRA_DENY_LINES}\"${_rel}\" = \"deny\"

@@ -150,6 +150,47 @@ canonicalize() {
   return 0
 }
 
+# ─── Helper: LEXICAL absolute path (does NOT resolve symlinks) ──────────
+#
+# Companion to canonicalize(). canonicalize() resolves symlinks — required
+# for the §4a system-directory escape check, which must see the real target.
+# But that same resolution rewrites an in-project symlink such as
+#   <proj>/data/raw/x.dta  ->  /elsewhere/YW/CFPS/x.dta
+# so the resolved path no longer matches the sidecar key NOR the
+# is_rawdata_path classifier — both keyed on the in-project location.
+# lexical_abspath() absolutizes (against CWD, like canonicalize) and collapses
+# '.'/'..' WITHOUT following symlinks, preserving the in-project path. It is
+# consulted ALONGSIDE the canonical path for sidecar lookup and data/qual
+# classification — NEVER for the system-dir escape check.
+#
+# Always prints something (never fails closed on its own): callers OR its
+# result with the canonical path, so an empty result simply contributes no
+# extra match.
+lexical_abspath() {
+  local target="$1"
+  [ -z "$target" ] && return 0
+  case "$target" in
+    /*) ;;
+    *)
+      local anchor="${CWD:-$PWD}"
+      [ -n "$anchor" ] && target="${anchor%/}/${target}"
+      ;;
+  esac
+  if command -v python3 >/dev/null 2>&1; then
+    local result
+    result=$(python3 -c 'import os,sys; print(os.path.normpath(sys.argv[1]))' "$target" 2>/dev/null)
+    if [ -n "$result" ]; then
+      printf '%s\n' "$result"
+      return 0
+    fi
+  fi
+  # Fallback: emit the (CWD-anchored) target as-is; normpath is lexical-only
+  # so its absence just means '..' segments are not collapsed — still usable
+  # for prefix matching against is_rawdata_path.
+  printf '%s\n' "$target"
+  return 0
+}
+
 # ─── Data extension list (shared between Read and Grep/Glob checks) ─────
 # Extensions here are ALWAYS inspected. Document formats (.txt, .rtf, .docx)
 # are NOT in this list — they're conditionally inspected only when inside a
@@ -253,6 +294,28 @@ is_qual_path() {
     */respondents/*|*/respondents)
       return 0 ;;
   esac
+  return 1
+}
+
+# ─── Multi-path classifiers: match if ANY passed (lowercased) path is a ──
+# raw-data / qualitative path. Used to classify a target by BOTH its
+# symlink-resolved (canonical) path AND its lexical in-project path, so a
+# file symlinked into data/raw whose realpath escapes the tree is still
+# recognized. Empty args are skipped.
+is_rawdata_any() {
+  local p
+  for p in "$@"; do
+    [ -n "$p" ] || continue
+    is_rawdata_path "$p" && return 0
+  done
+  return 1
+}
+is_qual_any() {
+  local p
+  for p in "$@"; do
+    [ -n "$p" ] || continue
+    is_qual_path "$p" && return 0
+  done
   return 1
 }
 
@@ -542,7 +605,7 @@ bash_primary_verb() {
 # NEVER a bare extension and NEVER output/tables/.claude (is_rawdata_path
 # already excludes those). Empty output = no sensitive target found.
 bash_first_sensitive_target() {
-  local cmd="$1" norm tok canon lower st ext
+  local cmd="$1" norm tok canon lex lower lowerlex st ext
   # Reveal embedded + assignment-RHS paths: turn shell punctuation (incl. '='
   # so `D=data/raw` exposes data/raw) into spaces. Keep '/' and '$'.
   norm="$(printf '%s' "$cmd" | tr '"'"'"'`(){}[],;|&<>=' '              ')"
@@ -559,11 +622,16 @@ bash_first_sensitive_target() {
     esac
     canon="$(canonicalize "$tok" 2>/dev/null || true)"
     [ -n "$canon" ] || canon="$tok"
+    lex="$(lexical_abspath "$tok" 2>/dev/null || true)"
     lower="$(printf '%s' "$canon" | tr 'A-Z' 'a-z')"
-    if is_rawdata_path "$lower" || is_qual_path "$lower"; then
+    lowerlex="$(printf '%s' "$lex" | tr 'A-Z' 'a-z')"
+    # Classify by BOTH the symlink-resolved and lexical in-project path — a
+    # data/raw/*.csv symlinked to an out-of-tree target must still be caught.
+    if is_rawdata_any "$lower" "$lowerlex" || is_qual_any "$lower" "$lowerlex"; then
       printf '%s\n' "$canon"; return 0
     fi
     st="$(bash_sidecar_status "$canon")"
+    [ -n "$st" ] || st="$(bash_sidecar_status "$lex")"
     case "$st" in
       LOCAL_MODE|HALTED|NEEDS_REVIEW|NEEDS_REVIEW:*) printf '%s\n' "$canon"; return 0 ;;
     esac
@@ -715,12 +783,15 @@ EOF
       exit 2
     fi
     LOWER_TARGET="$(printf '%s' "$CANON_TARGET" | tr '[:upper:]' '[:lower:]')"
+    LEX_TARGET="$(lexical_abspath "$TARGET" 2>/dev/null || true)"
+    LOWER_LEX_TARGET="$(printf '%s' "$LEX_TARGET" | tr '[:upper:]' '[:lower:]')"
 
     # (a) Target is/under a raw-data OR qualitative-data directory.
     #     is_rawdata_path now includes materials/transcripts/interviews/
     #     field-notes, so Grep on verbatim-text paths is blocked the same
-    #     way Read is.
-    if is_rawdata_path "$LOWER_TARGET" || is_qual_path "$LOWER_TARGET"; then
+    #     way Read is. Classify by BOTH the resolved and lexical path so a
+    #     symlinked data dir/file that escapes the tree is still caught.
+    if is_rawdata_any "$LOWER_TARGET" "$LOWER_LEX_TARGET" || is_qual_any "$LOWER_TARGET" "$LOWER_LEX_TARGET"; then
       cat >&2 <<EOF
 SAFETY GUARD: Grep blocked on '$TARGET'.
 
@@ -886,7 +957,9 @@ EOF
       CANON_PREFIX="$(canonicalize "$LITERAL_PREFIX")"
       if [ -n "$CANON_PREFIX" ]; then
         LOWER_PREFIX="$(printf '%s' "$CANON_PREFIX" | tr '[:upper:]' '[:lower:]')"
-        if is_rawdata_path "$LOWER_PREFIX" || is_qual_path "$LOWER_PREFIX"; then
+        LEX_PREFIX="$(lexical_abspath "$LITERAL_PREFIX" 2>/dev/null || true)"
+        LOWER_LEX_PREFIX="$(printf '%s' "$LEX_PREFIX" | tr '[:upper:]' '[:lower:]')"
+        if is_rawdata_any "$LOWER_PREFIX" "$LOWER_LEX_PREFIX" || is_qual_any "$LOWER_PREFIX" "$LOWER_LEX_PREFIX"; then
           cat >&2 <<EOF
 SAFETY GUARD: Glob blocked on '$GLOB_PATTERN'.
 
@@ -1008,6 +1081,14 @@ EOF
 fi
 FILE_PATH="$CANON_PATH"
 
+# LEXICAL in-project path (symlinks NOT resolved) — used ALONGSIDE the
+# canonical FILE_PATH for the sidecar lookup (§6) and the data/qual
+# classification (§5, §7), so a data/raw/*.dta symlinked to an out-of-tree
+# target is still matched to its in-project sidecar key and recognized as
+# raw-data. Deliberately NOT used by the §4a system-dir escape check below,
+# which must inspect the real (resolved) target.
+LEXICAL_PATH="$(lexical_abspath "$RAW_FILE_PATH" 2>/dev/null || true)"
+
 # ─── 4a. Refuse canonical paths that escape into system directories ────
 # A symlink inside a scholar-init project could point to /etc/passwd,
 # /dev/mem, /proc/self/environ, etc. Canonicalization above resolves
@@ -1044,6 +1125,7 @@ EOF
 esac
 
 LOWER_PATH="$(printf '%s' "$FILE_PATH" | tr '[:upper:]' '[:lower:]')"
+LOWER_LEXICAL_PATH="$(printf '%s' "$LEXICAL_PATH" | tr '[:upper:]' '[:lower:]')"
 EXT="${LOWER_PATH##*.}"
 # Strip trailing whitespace that might sneak in
 EXT="${EXT%%[[:space:]]*}"
@@ -1085,7 +1167,10 @@ fi
 
 # Files with no extension in a raw-data directory are still inspected —
 # attackers could save `secrets` or `dump` to bypass the extension check.
-if [ "$IS_DATA" = 0 ] && is_rawdata_path "$LOWER_PATH"; then
+# Classify by BOTH the resolved and the lexical in-project path: a file
+# symlinked INTO data/raw (whose realpath escapes the tree) must still be
+# treated as data even when its extension is unknown/non-data.
+if [ "$IS_DATA" = 0 ] && is_rawdata_any "$LOWER_PATH" "$LOWER_LEXICAL_PATH"; then
   IS_DATA=1
 fi
 
@@ -1133,6 +1218,15 @@ PROJ_ROOT="$(find_project_root "$FILE_PATH")"
 if [ -n "$PROJ_ROOT" ] && [ -f "${PROJ_ROOT}/.claude/safety-status.json" ]; then
   STATUS_FILE="${PROJ_ROOT}/.claude/safety-status.json"
 fi
+# Also try the file's LEXICAL location. When the file is a symlink whose
+# target escapes the project, find_project_root on the resolved path misses
+# the in-project .claude/, but the lexical path still lands inside it.
+if [ -z "$STATUS_FILE" ] && [ -n "${LEXICAL_PATH:-}" ]; then
+  LEX_ROOT="$(find_project_root "$LEXICAL_PATH")"
+  if [ -n "$LEX_ROOT" ] && [ -f "${LEX_ROOT}/.claude/safety-status.json" ]; then
+    STATUS_FILE="${LEX_ROOT}/.claude/safety-status.json"
+  fi
+fi
 # Fallback: nearest ancestor of cwd. (If the file is outside any project
 # but cwd is inside one, we still apply the cwd project's policy.)
 if [ -z "$STATUS_FILE" ] && [ -n "$CWD" ]; then
@@ -1170,13 +1264,16 @@ EOF
     exit 2
   fi
 
-  # Try TWO key forms in order: the canonical (realpath-resolved) form,
-  # and the raw form that came in on the tool_input. Both are full
-  # absolute paths, so they're project-scoped — no cross-project collision.
+  # Try THREE key forms in order: the canonical (realpath-resolved) form,
+  # the LEXICAL in-project form (symlinks NOT resolved — this is the key
+  # scholar-init writes for a data/raw/*.dta symlink, whose realpath escapes
+  # the project), and the raw form that came in on the tool_input. All are
+  # project-scoped absolute paths (or CWD-anchored), so no cross-project
+  # collision.
   #
   # On macOS, `cd ... && pwd` in init-project.sh returns /var/folders/...
   # while the guard's python3 realpath returns /private/var/folders/...
-  # The raw-path fallback handles that. Beyond those two, we do NOT fall
+  # The raw-path fallback handles that. Beyond these, we do NOT fall
   # back to basename — an OVERRIDE for `foo.csv` in project A must not
   # match a different `foo.csv` in project B.
   #
@@ -1184,7 +1281,7 @@ EOF
   # enforced this, but we do it again at the lookup site so future
   # refactors stay safe).
   STATUS=""
-  for KEY in "$FILE_PATH" "$RAW_FILE_PATH"; do
+  for KEY in "$FILE_PATH" "$LEXICAL_PATH" "$RAW_FILE_PATH"; do
     [ -z "$KEY" ] && continue
     LOOKUP="$(jq -r --arg fp "$KEY" '(.[$fp] // empty) | if type=="string" then . else empty end' "$STATUS_FILE" 2>/dev/null || echo "")"
     if [ -n "$LOOKUP" ]; then
@@ -1227,7 +1324,7 @@ EOF
       eaf|textgrid|trs|cha|praat)
         QUAL_HIT=1 ;;
     esac
-    if [ "$QUAL_HIT" = 0 ] && is_qual_path "$LOWER_PATH"; then
+    if [ "$QUAL_HIT" = 0 ] && is_qual_any "$LOWER_PATH" "$LOWER_LEXICAL_PATH"; then
       # Only text-document extensions in a qualitative-text path count
       # for THIS rule — an analysis.py in transcripts/ is code, not data.
       for E in "${CONDITIONAL_TEXT_EXTS[@]}"; do
@@ -1321,7 +1418,7 @@ fi
 
 # ─── 7. Image files: path-based classification ──────────────────────────
 if [ "$IS_IMAGE" = 1 ]; then
-  if is_rawdata_path "$LOWER_PATH"; then
+  if is_rawdata_any "$LOWER_PATH" "$LOWER_LEXICAL_PATH"; then
     cat >&2 <<EOF
 SAFETY GUARD: Read blocked on '$FILE_PATH'.
 
