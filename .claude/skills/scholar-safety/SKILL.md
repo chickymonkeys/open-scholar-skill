@@ -620,7 +620,14 @@ if [ "$LVL" = "lockdown" ]; then
   [ -f "$_b" ] && . "$_b"; unset _b
   # Default is the HARD wall (allowUnsandboxedCommands:false). Pass
   # --allow-escalation ONLY if the user must run LOCAL_MODE analysis while locked.
-  ESC=""; printf '%s' "$ARGUMENTS" | grep -qiE 'escalat|allow-unsandbox' && ESC="--allow-escalation"
+  # --allow-escalation weakens the OS sandbox (the real wall). Require the LITERAL flag
+  # token as a whitespace-delimited word — NEVER infer it from prose like "escalate",
+  # which also matches "no escalation" / "don't allow-unsandboxed" (the old grep did,
+  # silently weakening lockdown exactly when the user asked for the strongest setting).
+  ESC=""
+  case " $ARGUMENTS " in
+    *" --allow-escalation "*|*" --allow-unsandboxed "*) ESC="--allow-escalation" ;;
+  esac
   bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/generate-lockdown-config.sh" "$(pwd)" --host auto $ESC
 fi
 ```
@@ -719,7 +726,7 @@ fi
 
 ```bash
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-cat "$SKILL_DIR/scholar-qual/SKILL.md" | sed -n '/^## MANDATORY PRE-STEP: Data Anonymization Gate/,/^## WORKFLOW 0:/p' | head -n -1
+sed -n '/^## MANDATORY PRE-STEP: Data Anonymization Gate/,/^## WORKFLOW 0:/p' "$SKILL_DIR/scholar-qual/SKILL.md" | sed '$d'
 ```
 
 The procedure has 5 steps — all run locally, no data sent to AI:

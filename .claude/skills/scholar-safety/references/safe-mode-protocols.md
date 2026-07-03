@@ -337,8 +337,13 @@ When cloud AI is prohibited, use a fully local LLM (Ollama). No data leaves your
 ### Setup (one-time):
 
 ```bash
-# Install Ollama
-curl -fsSL https://ollama.com/install.sh | sh
+# Install Ollama — USER-RUN (the assistant must NOT execute this). Prefer a package
+# manager so the download is integrity-checked; do not pipe a remote script into a shell.
+#   macOS:  brew install ollama
+#   Linux:  download, INSPECT, then run — never `curl … | sh`:
+#     curl -fsSL https://ollama.com/install.sh -o /tmp/ollama-install.sh
+#     less /tmp/ollama-install.sh      # review what it does first
+#     sh /tmp/ollama-install.sh
 
 # Pull models (downloads once; runs offline thereafter)
 ollama pull llama3.2          # General purpose, good for text

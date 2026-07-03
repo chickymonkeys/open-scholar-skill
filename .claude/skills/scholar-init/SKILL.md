@@ -66,7 +66,11 @@ If the user gave a slug but **no file paths at all** (`RAW_INPUTS` and `MATERIAL
 
 ```bash
 SCRIPT="${SCHOLAR_SKILL_DIR:-.}/scripts/init-project.sh"
-bash "$SCRIPT" ${DEST:+--dest "$DEST"} --scaffold "$SLUG"
+# Array argv: ${DEST:+--dest "$DEST"} collapses to a single "--dest /path" token under
+# zsh (the Bash tool's shell) and init-project.sh rejects it. Build it as an array.
+INIT_ARGS=()
+[ -n "$DEST" ] && INIT_ARGS+=(--dest "$DEST")
+bash "$SCRIPT" "${INIT_ARGS[@]}" --scaffold "$SLUG"
 ```
 
 This creates `data/raw/`, `data/interim/`, `data/processed/`, `materials/`, `output/`, `logs/`, and `.claude/` (with an empty `safety-status.json`), plus `README.md`, `.gitignore`, and `logs/init-report.md`. No files are ingested and nothing is scanned yet. Surface the script's summary block verbatim.
@@ -101,15 +105,23 @@ Construct and run the script:
 
 ```bash
 SCRIPT="${SCHOLAR_SKILL_DIR:-.}/scripts/init-project.sh"
-bash "$SCRIPT" \
-  ${DEST:+--dest "$DEST"} \
-  ${LINK_MODE:+--link} \
-  ${MATERIALS_FLAGS} \
-  "$SLUG" \
-  "${RAW_INPUTS[@]}"
+# Build argv as an ARRAY. The old ${DEST:+--dest "$DEST"} collapses to a SINGLE token
+# under zsh (the Bash tool's shell) — init-project.sh then sees "--dest /path" as one
+# arg and errors; ${MATERIALS_FLAGS} carried literal quote characters and broke ingestion
+# in both shells. Arrays pass each token intact and are space-safe under "My Drive".
+INIT_ARGS=()
+[ -n "$DEST" ] && INIT_ARGS+=(--dest "$DEST")
+[ -n "$LINK_MODE" ] && INIT_ARGS+=(--link)
+# MATERIALS_PATHS is a bash array of materials file paths (one element per input; may be empty)
+if [ "${#MATERIALS_PATHS[@]}" -gt 0 ]; then
+  for _m in "${MATERIALS_PATHS[@]}"; do INIT_ARGS+=(--materials "$_m"); done
+fi
+bash "$SCRIPT" "${INIT_ARGS[@]}" "$SLUG" "${RAW_INPUTS[@]}"
 ```
 
-where `MATERIALS_FLAGS` is one `--materials "<path>"` per materials input.
+where `MATERIALS_PATHS` is a bash array of materials file paths — e.g.
+`MATERIALS_PATHS=("/path/one codebook.pdf" "/path/two questionnaire.pdf")` — one element
+per materials input (leave it as `MATERIALS_PATHS=()` when there are none).
 
 Capture the script's stdout and display the key parts to the user. The script prints a summary block at the end; surface that verbatim.
 
@@ -330,8 +342,9 @@ If the re-scan is still YELLOW/RED, tell the user and restart the loop for that 
 **(f) Update `.claude/safety-status.json` atomically.**
 
 ```bash
-jq --arg k "$FILE" --arg v "$NEW_STATUS" '.[$k] = $v' .claude/safety-status.json > .claude/safety-status.json.new
-mv .claude/safety-status.json.new .claude/safety-status.json
+jq --arg k "$FILE" --arg v "$NEW_STATUS" '.[$k] = $v' .claude/safety-status.json > .claude/safety-status.json.new \
+  && mv .claude/safety-status.json.new .claude/safety-status.json \
+  || { echo "ERROR: jq failed — sidecar left unchanged (not clobbered)"; rm -f .claude/safety-status.json.new; }
 ```
 
 Never edit the JSON by hand — always use `jq` to preserve valid JSON.
