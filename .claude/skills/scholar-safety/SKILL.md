@@ -633,8 +633,6 @@ When `LVL=lockdown`, generate the host-appropriate OS-enforced read-deny config.
 
 ```bash
 if [ "$LVL" = "lockdown" ]; then
-  _b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"
-  [ -f "$_b" ] && . "$_b"; unset _b
   # Default is the HARD wall (allowUnsandboxedCommands:false). Pass
   # --allow-escalation ONLY if the user must run LOCAL_MODE analysis while locked.
   # --allow-escalation weakens the OS sandbox (the real wall). Require the LITERAL flag

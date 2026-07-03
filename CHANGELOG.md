@@ -3,6 +3,14 @@
 All notable changes to open-scholar-skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.16.2] - 2026-07-04
+
+### Data-guard fix — Bash tokenizer dropped the final token (fail-open) + metadata trues-up
+
+- **`pretooluse-data-guard.sh`:** `_bash_tokenize`'s historical pass emitted its token stream WITHOUT a trailing newline, and the `while read` consumer drops a final unterminated line — so the LAST token of any unquoted command was never classified. Net effect: plain `cat data/raw/x.csv` (also `head`/`od`/`base64`/`env`-wrapper/`<`-redirection/row-`grep`) sailed through the Bash-channel speed-bump; quoted commands were unaffected (python-shlex branch prints with newlines, which is why `sed -n '1,5p' …` still denied). Fixed by terminating the stream (`printf '%s\n'`) and hardening the read loop (`|| [ -n "$tok" ]`). `test-pretooluse-guard.sh` 98/98 (was 91/7); `test-codex-data-guard.sh` 5/5 (T1 shared this root cause via the Codex adapter).
+- **Agent-count metadata:** plugin.json description corrected to 20 agents (9 peer-reviewer + 6 code-review + 5 verification — `verify-claim-faithfulness` shipped in 5.16.0 without the metadata update); CLAUDE.md version/agents lines refreshed.
+- **Stale bootstrap references removed:** `scholar-skill-bootstrap.sh` sourcing dropped from scholar-safety Step 5.1b and scholar-auto-research step 5b — the script is not shipped in this repo; the lines were `[ -f ]`-guarded no-ops.
+
 ## [5.16.1] - 2026-07-04
 
 ### Audit remediation — scholar-init / scholar-safety corrections + pandoc array propagation

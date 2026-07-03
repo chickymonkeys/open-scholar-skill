@@ -168,8 +168,6 @@ The script prints a one-time user-facing notice on CREATE / APPEND (full banner 
 5b. Install the Codex data-safety hook when the host could be Codex (2026-07). The data guard (`pretooluse-data-guard.sh`) only fires under Claude Code (`~/.claude/settings.json`); a **Codex** host never reads that file. When the detected host is `codex` or `unknown` — the same rule that writes `AGENTS.md` — register the guard as a Codex PreToolUse hook in `<proj>/.codex/config.toml`. This matters because an auto-research project **not** initialized by `scholar-init` (the branch at step 3 above) would otherwise have no Codex-side enforcement. Harmless under Claude Code; activates once the user trusts the project in Codex.
 
 ```bash
-_b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"
-[ -f "$_b" ] && . "$_b"; unset _b
 _HOST="$(bash "${SCHOLAR_SKILL_DIR:-.}/scripts/detect-host-agent.sh" 2>/dev/null || echo unknown)"
 if [ "$_HOST" = "codex" ] || [ "$_HOST" = "unknown" ]; then
   bash "${SCHOLAR_SKILL_DIR:-.}/scripts/phases/setup-codex-hooks.sh" "$PROJ" || true

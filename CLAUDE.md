@@ -58,10 +58,10 @@ open-scholar-skill/
     │   ├── scholar-verify/      # Two-stage analysis-to-manuscript consistency (4-agent panel)
     │   ├── scholar-write/       # Section drafting (5-agent review panel)
     │   └── sync-docs/           # Cross-document synchronization utility
-    └── agents/                  # 19 agents (9 peer-reviewer + 4 verify + 6 code-review)
+    └── agents/                  # 20 agents (9 peer-reviewer + 5 verify + 6 code-review)
 ```
 
-**Version**: v5.15.0 — 34 skills, 19 agents (9 peer-reviewer + 4 verify + 6 code-review)
+**Version**: v5.16.2 — 34 skills, 20 agents (9 peer-reviewer + 5 verify + 6 code-review)
 
 ---
 

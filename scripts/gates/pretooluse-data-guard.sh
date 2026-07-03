@@ -643,7 +643,12 @@ PY
   esac
   # Historical pass: shell punctuation -> space (KEEP '/' and '$'), then squeeze
   # whitespace runs into newlines so tokens split exactly as they did before.
-  printf '%s' "$cmd" | tr '"'"'"'`(){}[],;|&<>=' '              ' | tr -s ' \t\n' '\n'
+  # printf '%s\n' (NOT '%s'): the output stream MUST end with a newline. The
+  # consumer is a `while read` loop, and `read` returns nonzero on the final
+  # unterminated line, silently DROPPING the last token — which for a plain
+  # `cat data/raw/x.csv` is exactly the sensitive path (fail-open; fixed
+  # 2026-07-04, caught by test-pretooluse-guard.sh Bash-channel cases).
+  printf '%s\n' "$cmd" | tr '"'"'"'`(){}[],;|&<>=' '              ' | tr -s ' \t\n' '\n'
 }
 
 # Return the FIRST command path token that resolves to a sensitive target
@@ -652,7 +657,9 @@ PY
 # already excludes those). Empty output = no sensitive target found.
 bash_first_sensitive_target() {
   local cmd="$1" tok canon lex lower lowerlex st ext
-  while IFS= read -r tok; do
+  # `|| [ -n "$tok" ]` processes a final unterminated line too — belt-and-
+  # braces with the tokenizer's trailing-newline contract (see _bash_tokenize).
+  while IFS= read -r tok || [ -n "$tok" ]; do
     case "$tok" in
       -*|'') continue ;;
       *'$'*) continue ;;                                # unexpanded var — cannot resolve
