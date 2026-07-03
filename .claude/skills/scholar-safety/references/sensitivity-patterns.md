@@ -207,15 +207,29 @@ grep -cEi '\b(political.?belief|ideology|radical|extremist|activist)\b' "$FILE"
 # Run this full scan and compute composite risk score
 FILE="$1"
 
+# FAIL-CLOSED (2026-07-03): an unreadable target must ESCALATE, never score 0 → LOW.
+if [ ! -e "$FILE" ] || [ ! -r "$FILE" ] || [ -d "$FILE" ]; then
+  echo "RISK: 🔴 HIGH (score=999) — unscannable target: $FILE"
+  echo "FLAGS: unreadable-or-missing"
+  exit 1
+fi
+# Non-plaintext formats are blind to these greps → floor at MEDIUM, never LOW.
+BINARY_FLOOR="no"
+case "$(file -b "$FILE" 2>/dev/null)" in
+  *[Tt]ext*|*ASCII*|*UTF-8*|*JSON*|*CSV*|*empty*) : ;;
+  *) BINARY_FLOOR="yes" ;;
+esac
+
 score=0
 flags=""
 
-SSN=$(grep -cEi '\b[0-9]{3}-[0-9]{2}-[0-9]{4}\b|\bSSN\b' "$FILE" 2>/dev/null); [ "$SSN" -gt 0 ] && score=$((score+100)) && flags="$flags SSN($SSN)"
+SSN=$(grep -cEi '\b[0-9]{3}-[0-9]{2}-[0-9]{4}\b|\bSSN\b' "$FILE" 2>/dev/null); [ "${SSN:-0}" -gt 0 ] && score=$((score+100)) && flags="$flags SSN($SSN)"
 EMAIL=$(grep -cEi '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$FILE" 2>/dev/null); [ "$EMAIL" -gt 5 ] && score=$((score+80)) && flags="$flags email($EMAIL)"
 HEALTH=$(grep -cEi '\b(diagnosis|ICD|patient|PHI|HIPAA|clinical)\b' "$FILE" 2>/dev/null); [ "$HEALTH" -gt 0 ] && score=$((score+90)) && flags="$flags health($HEALTH)"
 MENTAL=$(grep -cEi '\b(suicid|self.?harm|psychiatric|mental.?health)\b' "$FILE" 2>/dev/null); [ "$MENTAL" -gt 0 ] && score=$((score+90)) && flags="$flags mental($MENTAL)"
 LEGAL=$(grep -cEi '\b(undocumented|immigration.?status|criminal.?record|incarcerated)\b' "$FILE" 2>/dev/null); [ "$LEGAL" -gt 0 ] && score=$((score+95)) && flags="$flags legal($LEGAL)"
-DUA=$(grep -cEi '\b(NHANES|PSID|NLSY|IPUMS|restricted.?use|DUA)\b' "$FILE" 2>/dev/null); [ "$DUA" -gt 0 ] && score=$((score+85)) && flags="$flags restricted($DUA)"
+DUA=$(grep -cEi '\b(NHANES|PSID|NLSY|IPUMS|restricted.?use|DUA)\b' "$FILE" 2>/dev/null); [ "${DUA:-0}" -gt 0 ] && score=$((score+85)) && flags="$flags restricted($DUA)"
+INTL=$(grep -cEi '\b(UK ?Biobank|ALSPAC|NHS ?Digital|GSOEP|SOEP|SHARE|EU-?SILC|CFPS|CHARLS|CGSS|CLHLS|IHDS|JGSS|JLPS|Understanding ?Society|HILDA|KLoSA|Add ?Health)\b' "$FILE" 2>/dev/null); [ "${INTL:-0}" -gt 0 ] && score=$((score+85)) && flags="$flags intl-restricted($INTL)"
 IRB=$(grep -cEi '\b(participant|respondent|consent)\b' "$FILE" 2>/dev/null); [ "$IRB" -gt 20 ] && score=$((score+30)) && flags="$flags irb-markers($IRB)"
 GEO=$(grep -cEi '\b(latitude|longitude|census.?tract|geocode)\b' "$FILE" 2>/dev/null); [ "$GEO" -gt 0 ] && score=$((score+40)) && flags="$flags geo($GEO)"
 FINANCIAL=$(grep -cEi '\b(account.?number|routing.?number|credit.?card)\b' "$FILE" 2>/dev/null); [ "$FINANCIAL" -gt 0 ] && score=$((score+60)) && flags="$flags financial($FINANCIAL)"
@@ -226,6 +240,9 @@ if [ "$score" -ge 80 ]; then
   RISK="🔴 HIGH"
 elif [ "$score" -ge 30 ]; then
   RISK="🟡 MEDIUM"
+elif [ "$BINARY_FLOOR" = "yes" ]; then
+  RISK="🟡 MEDIUM"   # binary/opaque target: counts are blind, never conclude LOW
+  flags="$flags binary-format(counts-blind)"
 else
   RISK="🟢 LOW"
 fi

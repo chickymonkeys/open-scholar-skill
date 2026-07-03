@@ -97,7 +97,7 @@ echo "| [step#] | $(date +%H:%M:%S) | [Step Name] | [1-line action summary] | [o
 
 > **Never read a flagged file's content into context until the user explicitly grants permission.**
 >
-> The scan steps below use `Bash` with grep/awk/wc to detect patterns and return COUNTS only. The actual sensitive values stay on the local filesystem. Only after the user selects option [C] PROCEED does `Read` get used on that file.
+> The scan steps below use `Bash` with grep/awk/wc to detect patterns and return COUNTS only. The actual sensitive values stay on the local filesystem. `Read` is used on a flagged file ONLY after the user selects **[Y] PROCEED** (cloud analysis approved) or **[D] OVERRIDE** (confirmed not sensitive). **[C] LOCAL MODE is the opposite of permission to Read** — it means Bash-only analysis with NO raw data in context, so a `[C]` selection must NEVER trigger a `Read`.
 
 ---
 
@@ -116,6 +116,8 @@ bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "[FILE_PATH]"
 - **GREEN (exit 0)**: No sensitive patterns detected — proceed to Step 1.1 for detailed scan or skip to MODE 2/3.
 - **YELLOW (exit 2)**: Review needed — proceed to detailed scan below.
 - **RED (exit 1)**: Sensitive data detected — proceed to detailed scan to get per-category counts, then apply Step 1.4 options.
+
+> **Risk is a FLOOR, never lowered by the detailed scan.** `safety-scan.sh` fails closed (it exits 1 on a missing/unreadable target). The detailed scan below may ADD specificity and RAISE the level, but it MUST NOT downgrade a Step 1.0 RED/YELLOW to a lower level. An empty per-category count set is only meaningful if the detailed scan actually read the file — see the fail-closed preamble in Step 1.3, which exits with RISK 🔴 HIGH when the target cannot be read. A "0 across the board" result from an unreadable/nonexistent/binary target is a SCAN FAILURE, not a 🟢 LOW.
 
 ### Step 1.1 — File Inventory
 
@@ -151,7 +153,7 @@ esac
 
 # Qualitative content indicators (by content patterns — counts only, no data exposed)
 if [ "$IS_QUAL" != "false" ]; then
-  QUAL_MARKERS=$(grep -cEi '\b(interviewer|interviewee|respondent|Q:|A:|INTERVIEWER:|PARTICIPANT:|field.?note|memo|transcript|focus.?group|ethnograph|informant)\b' "$FILE" 2>/dev/null || echo 0)
+  QUAL_MARKERS=$(grep -cEi '\b(interviewer|interviewee|respondent|Q:|A:|INTERVIEWER:|PARTICIPANT:|field.?note|memo|transcript|focus.?group|ethnograph|informant)\b' "$FILE" 2>/dev/null)
   NARRATIVE_LINES=$(awk 'length > 200' "$FILE" 2>/dev/null | wc -l | tr -d ' ')
   echo "Qualitative content markers: $QUAL_MARKERS"
   echo "Long narrative lines (>200 chars): $NARRATIVE_LINES"
@@ -162,7 +164,7 @@ fi
 
 # CSV/TSV can also contain qualitative data (open-ended survey responses)
 if [ "$IS_QUAL" = "false" ] && [[ "$EXT" =~ ^(csv|tsv)$ ]]; then
-  OPENENDED_MARKERS=$(grep -cEi '\b(open.?ended|verbatim|comment|narrative|response.?text|free.?text|transcript)\b' "$FILE" 2>/dev/null || echo 0)
+  OPENENDED_MARKERS=$(grep -cEi '\b(open.?ended|verbatim|comment|narrative|response.?text|free.?text|transcript)\b' "$FILE" 2>/dev/null)
   if [ "$OPENENDED_MARKERS" -gt 3 ]; then
     IS_QUAL="true"
     echo "Note: Structured file with qualitative content (open-ended responses detected)"
@@ -179,67 +181,101 @@ Run ALL of the following grep scans using Bash. Each returns only a COUNT. No ac
 ```bash
 FILE="$TARGET_PATH"
 
+# === FAIL-CLOSED PREAMBLE (2026-07-03) ===
+# The counters below are plaintext greps. If the target cannot be read, every count
+# is 0 — which must NEVER be mistaken for "no sensitive data → LOW". A scan that
+# cannot see its target ESCALATES.
+if [ ! -e "$FILE" ]; then
+  echo "SCAN-ERROR: target does not exist: $FILE"
+  echo "RISK: 🔴 HIGH — unscannable path; treat as restricted until a real, readable path is supplied. Do NOT report LOW/CLEARED."
+  exit 1
+fi
+if [ ! -r "$FILE" ] || [ -d "$FILE" ]; then
+  echo "SCAN-ERROR: target not a readable file: $FILE"
+  echo "RISK: 🔴 HIGH — unscannable; treat as restricted."
+  exit 1
+fi
+# Opaque/binary/compressed formats (.dta .sav .rds .parquet .xlsx .zip …) cannot be
+# grep-scanned for PII; the counters would read 0 and mislabel them LOW. Establish a
+# floor of 🟡 NEEDS_REVIEW for any non-plaintext target — resolved by extension /
+# provenance / DUA, never by a 🟢 LOW inferred from empty counts.
+FILE_KIND="$(file -b "$FILE" 2>/dev/null)"
+BINARY_FLOOR="no"
+case "$FILE_KIND" in
+  *[Tt]ext*|*ASCII*|*UTF-8*|*JSON*|*CSV*|*empty*) : ;;
+  *) BINARY_FLOOR="yes"
+     echo "NOTE: non-plaintext format ($FILE_KIND) — plaintext PII counters cannot see inside it."
+     echo "RISK FLOOR: 🟡 NEEDS_REVIEW (never 🟢 LOW on counts alone; classify by extension/provenance)." ;;
+esac
+
 # === DIRECT IDENTIFIERS ===
 echo "=== SENSITIVITY SCAN: $FILE ==="
 echo ""
 
 # Social Security Numbers (XXX-XX-XXXX or XXXXXXXXX)
-SSN_COUNT=$(grep -cEi '\b[0-9]{3}-[0-9]{2}-[0-9]{4}\b|\bSSN\b|\bsocial.security' "$FILE" 2>/dev/null || echo 0)
+SSN_COUNT=$(grep -cEi '\b[0-9]{3}-[0-9]{2}-[0-9]{4}\b|\bSSN\b|\bsocial.security' "$FILE" 2>/dev/null)
 echo "SSN patterns: $SSN_COUNT matches"
 
 # Names (common first/last name columns)
-NAME_COUNT=$(grep -cEi '\b(first.?name|last.?name|full.?name|respondent.?name|participant.?name)\b' "$FILE" 2>/dev/null || echo 0)
+NAME_COUNT=$(grep -cEi '\b(first.?name|last.?name|full.?name|respondent.?name|participant.?name)\b' "$FILE" 2>/dev/null)
 echo "Name fields: $NAME_COUNT matches"
 
 # Email addresses
-EMAIL_COUNT=$(grep -cEi '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$FILE" 2>/dev/null || echo 0)
+EMAIL_COUNT=$(grep -cEi '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' "$FILE" 2>/dev/null)
 echo "Email addresses: $EMAIL_COUNT matches"
 
 # Phone numbers
-PHONE_COUNT=$(grep -cEi '\b(\+?1[-.\s]?)?(\([0-9]{3}\)|[0-9]{3})[-.\s][0-9]{3}[-.\s][0-9]{4}\b' "$FILE" 2>/dev/null || echo 0)
+PHONE_COUNT=$(grep -cEi '\b(\+?1[-.\s]?)?(\([0-9]{3}\)|[0-9]{3})[-.\s][0-9]{3}[-.\s][0-9]{4}\b' "$FILE" 2>/dev/null)
 echo "Phone numbers: $PHONE_COUNT matches"
 
 # Street addresses
-ADDR_COUNT=$(grep -cEi '\b[0-9]{1,5}\s+[a-zA-Z]+(St|Street|Ave|Avenue|Blvd|Boulevard|Dr|Drive|Rd|Road|Ln|Lane|Way|Court|Ct)\b' "$FILE" 2>/dev/null || echo 0)
+ADDR_COUNT=$(grep -cEi '\b[0-9]{1,5}\s+[a-zA-Z]+(St|Street|Ave|Avenue|Blvd|Boulevard|Dr|Drive|Rd|Road|Ln|Lane|Way|Court|Ct)\b' "$FILE" 2>/dev/null)
 echo "Street addresses: $ADDR_COUNT matches"
 
 # ZIP codes (5-digit, possibly with +4)
-ZIP_COUNT=$(grep -cEi '\b[0-9]{5}(-[0-9]{4})?\b' "$FILE" 2>/dev/null || echo 0)
+ZIP_COUNT=$(grep -cEi '\b[0-9]{5}(-[0-9]{4})?\b' "$FILE" 2>/dev/null)
 echo "ZIP code patterns: $ZIP_COUNT matches (may include false positives)"
 
 # IP addresses
-IP_COUNT=$(grep -cEi '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' "$FILE" 2>/dev/null || echo 0)
+IP_COUNT=$(grep -cEi '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' "$FILE" 2>/dev/null)
 echo "IP addresses: $IP_COUNT matches"
 
 # === HEALTH / HIPAA DATA ===
 echo ""
-HEALTH_COUNT=$(grep -cEi '\b(diagnosis|ICD.?[0-9]|medical.?record|patient|PHI|HIPAA|health.?condition|medication|prescription|treatment|clinical)\b' "$FILE" 2>/dev/null || echo 0)
+HEALTH_COUNT=$(grep -cEi '\b(diagnosis|ICD.?[0-9]|medical.?record|patient|PHI|HIPAA|health.?condition|medication|prescription|treatment|clinical)\b' "$FILE" 2>/dev/null)
 echo "Health/HIPAA keywords: $HEALTH_COUNT matches"
 
 # Mental health terms
-MENTAL_COUNT=$(grep -cEi '\b(depression|anxiety|suicid|mental.?health|psychiatric|PTSD|bipolar|schizophrenia|self.?harm|substance.?use)\b' "$FILE" 2>/dev/null || echo 0)
+MENTAL_COUNT=$(grep -cEi '\b(depression|anxiety|suicid|mental.?health|psychiatric|PTSD|bipolar|schizophrenia|self.?harm|substance.?use)\b' "$FILE" 2>/dev/null)
 echo "Mental health terms: $MENTAL_COUNT matches"
 
 # === SENSITIVE LEGAL / IMMIGRATION STATUS ===
 echo ""
-LEGAL_COUNT=$(grep -cEi '\b(undocumented|illegal.?immigrant|immigration.?status|visa.?status|DACA|asylum|deportation|criminal.?record|arrest|conviction|incarcerated)\b' "$FILE" 2>/dev/null || echo 0)
+LEGAL_COUNT=$(grep -cEi '\b(undocumented|illegal.?immigrant|immigration.?status|visa.?status|DACA|asylum|deportation|criminal.?record|arrest|conviction|incarcerated)\b' "$FILE" 2>/dev/null)
 echo "Legal/immigration status: $LEGAL_COUNT matches"
 
 # === FINANCIAL DATA ===
-FINANCIAL_COUNT=$(grep -cEi '\b(account.?number|routing.?number|credit.?card|bank.?account|income|earnings|salary|tax.?return|W-?2)\b' "$FILE" 2>/dev/null || echo 0)
+FINANCIAL_COUNT=$(grep -cEi '\b(account.?number|routing.?number|credit.?card|bank.?account|income|earnings|salary|tax.?return|W-?2)\b' "$FILE" 2>/dev/null)
 echo "Financial data keywords: $FINANCIAL_COUNT matches"
 
 # === RESTRICTED / LICENSED DATA MARKERS ===
 echo ""
-RESTRICTED_COUNT=$(grep -cEi '\b(NHANES|PSID|NLSY|IPUMS|Census.?RDC|restricted.?use|data.?use.?agreement|DUA|confidential|not.?for.?distribution)\b' "$FILE" 2>/dev/null || echo 0)
+RESTRICTED_COUNT=$(grep -cEi '\b(NHANES|PSID|NLSY|IPUMS|Census.?RDC|restricted.?use|data.?use.?agreement|DUA|confidential|not.?for.?distribution)\b' "$FILE" 2>/dev/null)
 echo "Restricted/licensed data markers: $RESTRICTED_COUNT matches"
 
+# International / in-house restricted panels (backs the "International restricted data
+# markers" row in the Step 1.4 matrix — previously that row had NO detector). Note:
+# binary survey formats (.dta/.sav/.rds) rarely carry these strings, so the binary
+# floor above is the real backstop for those; this catches plaintext/codebook mentions.
+INTL_COUNT=$(grep -cEi '\b(UK ?Biobank|ALSPAC|NHS ?Digital|GSOEP|SOEP|SHARE|EU-?SILC|CFPS|CHARLS|CGSS|CLHLS|IHDS|JGSS|JLPS|Understanding ?Society|HILDA|KLoSA|Add ?Health)\b' "$FILE" 2>/dev/null)
+echo "International/in-house restricted dataset markers: $INTL_COUNT matches"
+
 # === IRB / PARTICIPANT MARKERS ===
-IRB_COUNT=$(grep -cEi '\b(participant|respondent|interview|subject.?ID|case.?ID|record.?ID|consent)\b' "$FILE" 2>/dev/null || echo 0)
+IRB_COUNT=$(grep -cEi '\b(participant|respondent|interview|subject.?ID|case.?ID|record.?ID|consent)\b' "$FILE" 2>/dev/null)
 echo "IRB participant markers: $IRB_COUNT matches"
 
 # === GEOGRAPHIC GRANULARITY ===
-GEO_COUNT=$(grep -cEi '\b(latitude|longitude|lat|lon|geocode|census.?tract|block.?group|exact.?address)\b' "$FILE" 2>/dev/null || echo 0)
+GEO_COUNT=$(grep -cEi '\b(latitude|longitude|lat|lon|geocode|census.?tract|block.?group|exact.?address)\b' "$FILE" 2>/dev/null)
 echo "Fine-grained geographic data: $GEO_COUNT matches"
 
 echo ""
@@ -261,7 +297,10 @@ Based on scan counts, apply this decision matrix:
 | IRB markers > 0 AND no other flags | 🟡 MEDIUM |
 | email 1–5 OR phone 1–5 OR financial > 0 | 🟡 MEDIUM |
 | ZIP codes only, no other flags | 🟡 MEDIUM |
-| No sensitive patterns OR only public data keywords | 🟢 LOW |
+| `BINARY_FLOOR=yes` (non-plaintext target — counts are blind) | 🟡 MEDIUM (NEEDS_REVIEW) — never LOW |
+| No sensitive patterns **AND** `BINARY_FLOOR=no` (a real plaintext scan ran) | 🟢 LOW |
+
+The `International restricted data markers` row is backed by `INTL_COUNT` (Step 1.3); the `🟢 LOW` row requires that the fail-closed preamble did NOT exit and the target was plaintext — a 0-count from an unreadable/binary target is a scan failure (🔴/🟡), not LOW.
 
 ### Step 1.5 — Safety Alert Output
 
