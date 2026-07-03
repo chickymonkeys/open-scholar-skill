@@ -402,7 +402,7 @@ Identify:
 
 ### Step 2.2 — Run MODE 1 scan on each file
 
-For each file path identified, run the sensitivity scan from Step 1.2 on that file.
+For each file path identified, run the MODE 1 sensitivity scan (Steps 1.1–1.4) on that file.
 
 ### Step 2.3 — Gate decision
 
@@ -752,11 +752,8 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 OUTDIR="$(dirname "${OUTPUT_ROOT}/[slug]/protocols/scholar-safety-protocol-[slug]-[YYYY-MM-DD]")"
 STEM="$(basename "${OUTPUT_ROOT}/[slug]/protocols/scholar-safety-protocol-[slug]-[YYYY-MM-DD]")"
 mkdir -p "$OUTDIR"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM"
-
+BASE=$(bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM" | awk -F= '/^BASE=/{print $2; exit}')
 mkdir -p "$(dirname "$BASE")"
-
-
 echo "SAVE_PATH=${BASE}.md"
 echo "BASE=${BASE}"
 ```
