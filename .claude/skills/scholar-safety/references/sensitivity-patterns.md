@@ -31,7 +31,10 @@ grep -cEi '\b[0-9]{1,5}\s[A-Za-z]+(St\.?|Street|Ave\.?|Avenue|Blvd\.?|Boulevard|
 
 # US ZIP codes (standalone, not part of a larger number)
 grep -cPi '(?<!\d)\d{5}(?:-\d{4})?(?!\d)' "$FILE" 2>/dev/null || \
-  grep -cEi '\bzip.?code\b|\bpostal.?code\b' "$FILE"
+  grep -cEi '\b[0-9]{5}(-[0-9]{4})?\b|\bzip.?code\b|\bpostal.?code\b' "$FILE"
+# NOTE: grep -P (PCRE lookarounds) is unsupported on BSD/macOS grep. The -E fallback keeps
+# counting bare 5-digit ZIP-like values there (some false positives — the safe direction for
+# a sensitivity scan) instead of the old name-only fallback that silently missed all values.
 
 # Dates of birth
 grep -cEi '\b(date.?of.?birth|dob|birth.?date|birthdate)\b' "$FILE"

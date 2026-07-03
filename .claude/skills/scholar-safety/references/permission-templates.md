@@ -277,14 +277,6 @@ Started: [date]
 
 ---
 
-Proceeding to Phase 0 (Idea Exploration)...
-
-Safety gate log written to: output/[slug]/logs/scholar-safety-log.md
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
----
-
 ## 6. Journal-Specific Safety Disclosure Prompts
 
 After completing the safety gate, remind the user of the disclosure they'll need to make:
