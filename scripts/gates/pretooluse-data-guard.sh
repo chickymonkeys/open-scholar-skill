@@ -604,12 +604,55 @@ bash_primary_verb() {
 # (is_rawdata_path / is_qual_path, or a sidecar status that forbids reads).
 # NEVER a bare extension and NEVER output/tables/.claude (is_rawdata_path
 # already excludes those). Empty output = no sensitive target found.
+# Emit candidate command-path tokens, one per line, for the classifier below.
+# Two UNIONED passes (additive — only ever ADDS tokens, never drops a match the
+# historical split would have made):
+#   (1) shlex (quote/escape-aware) FIRST — preserves spaced paths like
+#       `.../My Drive/.../x.dta` that the historical whitespace split SHREDDED.
+#       That shredding defeated sidecar exact-key matching for every path with a
+#       space (confirmed bypass: a LOCAL_MODE file outside data/* with a space in
+#       its name was ALLOWED). Emitted first so the whole, correct path is the one
+#       classified/reported. Only run when a quote or backslash is present (the
+#       only ways a spaced path reaches a command) and python3 exists.
+#   (2) historical punctuation+whitespace split — exposes assignment RHS
+#       (`D=data/raw`) and covers the no-python3 / unquoted cases.
+_bash_tokenize() {
+  local cmd="$1"
+  case "$cmd" in
+    *\"*|*\'*|*\\*)
+      if command -v python3 >/dev/null 2>&1; then
+        python3 - "$cmd" <<'PY' 2>/dev/null
+import shlex, sys
+try:
+    parts = shlex.split(sys.argv[1], posix=True)
+except Exception:
+    parts = []
+seen = set()
+for t in parts:
+    if not t:
+        continue
+    if t not in seen:
+        seen.add(t); print(t)
+    if "=" in t:                       # expose assignment RHS: FOO=/a b.csv
+        rhs = t.split("=", 1)[1]
+        if rhs and rhs not in seen:
+            seen.add(rhs); print(rhs)
+PY
+      fi
+      ;;
+  esac
+  # Historical pass: shell punctuation -> space (KEEP '/' and '$'), then squeeze
+  # whitespace runs into newlines so tokens split exactly as they did before.
+  printf '%s' "$cmd" | tr '"'"'"'`(){}[],;|&<>=' '              ' | tr -s ' \t\n' '\n'
+}
+
+# Return the FIRST command path token that resolves to a sensitive target
+# (is_rawdata_path / is_qual_path, or a sidecar status that forbids reads).
+# NEVER a bare extension and NEVER output/tables/.claude (is_rawdata_path
+# already excludes those). Empty output = no sensitive target found.
 bash_first_sensitive_target() {
-  local cmd="$1" norm tok canon lex lower lowerlex st ext
-  # Reveal embedded + assignment-RHS paths: turn shell punctuation (incl. '='
-  # so `D=data/raw` exposes data/raw) into spaces. Keep '/' and '$'.
-  norm="$(printf '%s' "$cmd" | tr '"'"'"'`(){}[],;|&<>=' '              ')"
-  for tok in $norm; do
+  local cmd="$1" tok canon lex lower lowerlex st ext
+  while IFS= read -r tok; do
     case "$tok" in
       -*|'') continue ;;
       *'$'*) continue ;;                                # unexpanded var — cannot resolve
@@ -635,7 +678,7 @@ bash_first_sensitive_target() {
     case "$st" in
       LOCAL_MODE|HALTED|NEEDS_REVIEW|NEEDS_REVIEW:*) printf '%s\n' "$canon"; return 0 ;;
     esac
-  done
+  done < <(_bash_tokenize "$cmd")
   return 0
 }
 
