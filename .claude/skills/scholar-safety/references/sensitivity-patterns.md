@@ -30,11 +30,18 @@ grep -cEi '\b\+[1-9][0-9]{6,14}\b' "$FILE"    # International format
 grep -cEi '\b[0-9]{1,5}\s[A-Za-z]+(St\.?|Street|Ave\.?|Avenue|Blvd\.?|Boulevard|Dr\.?|Drive|Rd\.?|Road|Ln\.?|Lane|Way|Ct\.?|Court|Pl\.?|Place)\b' "$FILE"
 
 # US ZIP codes (standalone, not part of a larger number)
-grep -cPi '(?<!\d)\d{5}(?:-\d{4})?(?!\d)' "$FILE" 2>/dev/null || \
+if printf x | grep -qP x 2>/dev/null; then    # PCRE support probe (GNU grep)
+  grep -cPi '(?<!\d)\d{5}(?:-\d{4})?(?!\d)' "$FILE" 2>/dev/null
+else
   grep -cEi '\b[0-9]{5}(-[0-9]{4})?\b|\bzip.?code\b|\bpostal.?code\b' "$FILE"
-# NOTE: grep -P (PCRE lookarounds) is unsupported on BSD/macOS grep. The -E fallback keeps
-# counting bare 5-digit ZIP-like values there (some false positives — the safe direction for
-# a sensitivity scan) instead of the old name-only fallback that silently missed all values.
+fi
+# NOTE: branch on a PCRE probe — do NOT chain the two greps with `||`. On GNU grep a
+# zero-match `grep -c` prints 0 AND exits 1, so an `||` fallback double-prints
+# ("0\n<count>"); a numeric capture then errors and evaluates FALSE — the fail-OPEN
+# direction (the grep-count-capture bug class). BSD/macOS grep lacks -P entirely
+# (exit ≥2, no output), so the old chain only misbehaved on GNU installs. The -E
+# fallback keeps counting bare 5-digit ZIP-like values (some false positives — the
+# safe direction for a sensitivity scan).
 
 # Dates of birth
 grep -cEi '\b(date.?of.?birth|dob|birth.?date|birthdate)\b' "$FILE"

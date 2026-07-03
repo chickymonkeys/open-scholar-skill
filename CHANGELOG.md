@@ -3,6 +3,18 @@
 All notable changes to open-scholar-skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.16.1] - 2026-07-04
+
+### Audit remediation — scholar-init / scholar-safety corrections + pandoc array propagation
+
+Ported from the upstream dev audit of the data-safety skills. Fixes:
+
+- **Qualitative-OVERRIDE classification drift (P1).** scholar-init's review matrix classified qualitative files by extension only while the PreToolUse guard refuses OVERRIDE by path-or-extension — the loop could offer `[D] OVERRIDE` for `interviews/*.txt` and then every Read was refused. Step 2.3(b) and Hard Rule 3 now mirror the guard's `is_qual_path` + text-extension rule.
+- **Anonymizer output path (P1).** Docs re-scanned `ANON_<file>` "next to the original"; `anonymize-presidio.py` actually writes `${OUTPUT_ROOT:-output}/qual/anonymized/ANON_<basename>`. Also documented the exit-0-without-output "No PII detected" branch.
+- **eval-pandoc array propagation (P1).** The array/no-eval pandoc pattern (spaced-path + `$(…)`-injection safe) applied to `_shared/pandoc-multiformat.md` (canonical recipe), `_shared/version-check.md`, scholar-write, and scholar-polish; string `CITEPROC_FLAGS` replaced by the `CITEPROC_ARGS` array. Zero executable `eval pandoc` remains.
+- **scholar-safety doc/robustness corrections (P2).** INTL markers SHARE/HILDA/Add Health matched case-sensitively (prose collisions like "income share" produced false 🔴); strict-tier redactor activation preconditions documented + Step 5.2 registration check; safety-scan exit-code claim corrected (1 = missing, 2 = unreadable); `resolve_safety_level` wiring claim corrected (PostToolUse redactor only); safety-log path unified to `${PROJ}/logs/` via `derive-proj.sh`; ZIP-scan PCRE fallback rewritten as a probe-branch (grep-count-capture bug class); fail-closed existence preamble moved ahead of Step 1.1.
+- **scholar-init doc/robustness corrections (P2).** Bare `NEEDS_REVIEW` (no level suffix) now included in the review enumeration; `_safety_level` meta key excluded from MODE 4 status counts (+ level line printed); sidecar absolute-key notes in Steps 2.3(f)/3.2; HALTED-note schema clarification (annotated values are schema-invalid and fail the guard closed project-wide); anonymizer regex-fallback claim corrected (scanning falls back to regex; anonymization requires Presidio).
+
 ## [5.16.0] - 2026-07-02
 
 ### Data-safety stack — Codex-host enforcement + OS-enforced lockdown wall

@@ -117,13 +117,21 @@ bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "[FILE_PATH]"
 - **YELLOW (exit 2)**: Review needed — proceed to detailed scan below.
 - **RED (exit 1)**: Sensitive data detected — proceed to detailed scan to get per-category counts, then apply Step 1.4 options.
 
-> **Risk is a FLOOR, never lowered by the detailed scan.** `safety-scan.sh` fails closed (it exits 1 on a missing/unreadable target). The detailed scan below may ADD specificity and RAISE the level, but it MUST NOT downgrade a Step 1.0 RED/YELLOW to a lower level. An empty per-category count set is only meaningful if the detailed scan actually read the file — see the fail-closed preamble in Step 1.3, which exits with RISK 🔴 HIGH when the target cannot be read. A "0 across the board" result from an unreadable/nonexistent/binary target is a SCAN FAILURE, not a 🟢 LOW.
+> **Risk is a FLOOR, never lowered by the detailed scan.** `safety-scan.sh` fails closed (exit 1 = RED on a missing target; exit 2 = YELLOW on an unreadable one — both non-GREEN, so neither can silently clear). The detailed scan below may ADD specificity and RAISE the level, but it MUST NOT downgrade a Step 1.0 RED/YELLOW to a lower level. An empty per-category count set is only meaningful if the detailed scan actually read the file — see the fail-closed preamble in Step 1.3, which exits with RISK 🔴 HIGH when the target cannot be read. A "0 across the board" result from an unreadable/nonexistent/binary target is a SCAN FAILURE, not a 🟢 LOW.
 
 ### Step 1.1 — File Inventory
 
 ```bash
 # Get file type, size, and encoding — no content read
 FILE="$TARGET_PATH"
+# FAIL-CLOSED FIRST: a missing/unreadable target must HALT here, before any
+# counting step (1.2+) can emit empty counts that read as "nothing found".
+# (Same rule as the Step 1.3 preamble; directories use the branch below.)
+if [ ! -e "$FILE" ] || [ ! -r "$FILE" ]; then
+  echo "SCAN-ERROR: unscannable target: $FILE"
+  echo "RISK: 🔴 HIGH — treat as restricted; do NOT report LOW/CLEARED."
+  exit 1
+fi
 file "$FILE"
 wc -l "$FILE" 2>/dev/null || echo "binary or unreadable"
 ls -lh "$FILE"
@@ -157,7 +165,7 @@ if [ "$IS_QUAL" != "false" ]; then
   NARRATIVE_LINES=$(awk 'length > 200' "$FILE" 2>/dev/null | wc -l | tr -d ' ')
   echo "Qualitative content markers: $QUAL_MARKERS"
   echo "Long narrative lines (>200 chars): $NARRATIVE_LINES"
-  if [ "$QUAL_MARKERS" -gt 5 ] || [ "$NARRATIVE_LINES" -gt 20 ]; then
+  if [ "${QUAL_MARKERS:-0}" -gt 5 ] || [ "${NARRATIVE_LINES:-0}" -gt 20 ]; then
     IS_QUAL="true"
   fi
 fi
@@ -165,7 +173,7 @@ fi
 # CSV/TSV can also contain qualitative data (open-ended survey responses)
 if [ "$IS_QUAL" = "false" ] && [[ "$EXT" =~ ^(csv|tsv)$ ]]; then
   OPENENDED_MARKERS=$(grep -cEi '\b(open.?ended|verbatim|comment|narrative|response.?text|free.?text|transcript)\b' "$FILE" 2>/dev/null)
-  if [ "$OPENENDED_MARKERS" -gt 3 ]; then
+  if [ "${OPENENDED_MARKERS:-0}" -gt 3 ]; then
     IS_QUAL="true"
     echo "Note: Structured file with qualitative content (open-ended responses detected)"
   fi
@@ -267,7 +275,12 @@ echo "Restricted/licensed data markers: $RESTRICTED_COUNT matches"
 # markers" row in the Step 1.4 matrix — previously that row had NO detector). Note:
 # binary survey formats (.dta/.sav/.rds) rarely carry these strings, so the binary
 # floor above is the real backstop for those; this catches plaintext/codebook mentions.
-INTL_COUNT=$(grep -cEi '\b(UK ?Biobank|ALSPAC|NHS ?Digital|GSOEP|SOEP|SHARE|EU-?SILC|CFPS|CHARLS|CGSS|CLHLS|IHDS|JGSS|JLPS|Understanding ?Society|HILDA|KLoSA|Add ?Health)\b' "$FILE" 2>/dev/null)
+# SHARE / HILDA / Add Health are matched CASE-SENSITIVELY in a second pass:
+# under -i they collide with ordinary prose and names ("income share", "add
+# health insurance", "Hilda").
+INTL_COUNT=$(grep -cEi '\b(UK ?Biobank|ALSPAC|NHS ?Digital|GSOEP|SOEP|EU-?SILC|CFPS|CHARLS|CGSS|CLHLS|IHDS|JGSS|JLPS|Understanding ?Society|KLoSA)\b' "$FILE" 2>/dev/null)
+INTL_CS_COUNT=$(grep -cE '\b(SHARE|HILDA|Add ?Health)\b' "$FILE" 2>/dev/null)
+INTL_COUNT=$(( ${INTL_COUNT:-0} + ${INTL_CS_COUNT:-0} ))
 echo "International/in-house restricted dataset markers: $INTL_COUNT matches"
 
 # === IRB / PARTICIPANT MARKERS ===
@@ -454,9 +467,12 @@ For each file path identified, run the MODE 1 sensitivity scan (Steps 1.1–1.4)
 ### Step 2.4 — Log the gate outcome
 
 ```bash
-OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-LOGFILE="${OUTPUT_ROOT}/logs/scholar-safety-log.md"
-mkdir -p "${OUTPUT_ROOT}/logs"
+# Canonical log location is PROJECT-scoped (${PROJ}/logs/) — the same file
+# MODE 4 status reads and the Save Output section documents (output/[slug]/logs/).
+# (Was ${OUTPUT_ROOT}/logs/, which diverged from the slug-scoped path.)
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+LOGFILE="${PROJ}/logs/scholar-safety-log.md"
+mkdir -p "${PROJ}/logs"
 echo "## Safety Gate — $(date '+%Y-%m-%d %H:%M')" >> "$LOGFILE"
 echo "Operation: [description]" >> "$LOGFILE"
 echo "File(s): [paths]" >> "$LOGFILE"
@@ -568,11 +584,12 @@ Save to: `output/[slug]/protocols/scholar-safety-protocol-[slug]-[YYYY-MM-DD].md
 ### Step 4.1 — Read and format the safety log
 
 ```bash
-OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-if [ -f "${OUTPUT_ROOT}/logs/scholar-safety-log.md" ]; then
-  cat "${OUTPUT_ROOT}/logs/scholar-safety-log.md"
+# Same project-scoped location Step 2.4 writes (${PROJ}/logs/).
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+if [ -f "${PROJ}/logs/scholar-safety-log.md" ]; then
+  cat "${PROJ}/logs/scholar-safety-log.md"
 else
-  echo "No safety log found. Run scholar-safety scan [file] to begin."
+  echo "No safety log found at ${PROJ}/logs/. Run scholar-safety scan [file] to begin."
 fi
 ```
 
@@ -582,14 +599,14 @@ Format the log as a readable summary table before returning it to the user. If t
 
 ## MODE 5: Set Safety Level
 
-*Choose how strongly the data-safety enforcement layer protects this project. The level is stored per-project as the `_safety_level` key in `.claude/safety-status.json` and is read by the PreToolUse/PostToolUse hooks (`resolve_safety_level` in `scripts/gates/sidecar-schema.sh`).*
+*Choose how strongly the data-safety enforcement layer protects this project. The level is stored per-project as the `_safety_level` key in `.claude/safety-status.json` and is consulted by the PostToolUse output redactor via `resolve_safety_level` (`scripts/gates/sidecar-schema.sh`). The PreToolUse guard does NOT read the level — its standard-tier gates run unconditionally at every level; the level only switches the extra strict/lockdown layers on.*
 
 ### The three levels — honest guarantees
 
 | Level | What it enforces | Stops accidental/cooperative leakage | Stops a determined/adversarial agent |
 |-------|------------------|:---:|:---:|
 | **standard** (default) | PreToolUse Bash dump-verb gate (`cat`/`head`/`sed`/`awk`/`grep`-rows/`sqlite3`/python·R row dumps on a sensitive path) + Edit/Write sidecar-tamper guard | ✅ | ❌ — it is a denylist; other interpreters, encodings, and variable-assembled paths bypass it |
-| **strict** | standard **+** a PostToolUse hook that redacts PII / bulk-row Bash **output** before it reaches context (any verb) | ✅ stronger | ❌ — evadable by encoding (`base64`/`gzip`/`hex`) and by `cp`-to-benign-path → Read |
+| **strict** | standard **+** a PostToolUse hook that redacts PII / bulk-row Bash **output** before it reaches context (any verb). Activation preconditions: the hook must be registered in `~/.claude/settings.json` (installed by `setup.sh` — installs predating the redactor need a re-run; Step 5.2 verifies) AND the sidecar must hold ≥1 `LOCAL_MODE`/`HALTED`/`NEEDS_REVIEW` entry — an all-`CLEARED`/`ANONYMIZED` project gets no redaction (nothing restricted to protect) | ✅ stronger | ❌ — evadable by encoding (`base64`/`gzip`/`hex`) and by `cp`-to-benign-path → Read |
 | **lockdown** | strict **+** an OS sandbox read-deny on the data dirs, auto-generated per-project by `generate-lockdown-config.sh` (Claude Code: `sandbox.filesystem.denyRead` w/ `allowUnsandboxedCommands:false`; Codex: `[permissions]` `"data"="deny"`) so subprocess reads of data are blocked at the kernel (Seatbelt/Landlock) | ✅ | ✅ — a real boundary (the only one) |
 
 Standard and strict are **cooperative-agent guardrails, not walls** — say so when you set them. Only lockdown is a containment boundary, and it imposes real friction (data analysis must run through the sanctioned runner / an explicit unsandboxed escalation). Lockdown is **auto-generated** for the detected host (Claude Code and/or Codex) by Step 5.1b — verified against Claude Code (`cat data/raw/*` → `Operation not permitted`, 0 leak) and Codex (`blocked by the active permission profile`).
@@ -636,7 +653,18 @@ Surface the generator's output verbatim — it prints the denied paths, the rest
 
 ### Step 5.2 — Report honestly
 
-- Confirm the level written and **what it actually enforces today** (use the table above — standard/strict are not walls).
+When the level is `strict` or `lockdown`, verify the PostToolUse redactor is actually registered before telling the user they have it:
+
+```bash
+if grep -q "posttooluse-output-guard.sh" "$HOME/.claude/settings.json" 2>/dev/null; then
+  echo "PostToolUse redactor: registered"
+else
+  echo "WARNING: PostToolUse redactor NOT registered in ~/.claude/settings.json —"
+  echo "the strict tier's output redaction is inert. Re-run: bash setup.sh"
+fi
+```
+
+- Confirm the level written and **what it actually enforces today** (use the table above — standard/strict are not walls, and strict's redactor only acts when the activation preconditions in the table hold).
 - **Hook config is snapshotted at session start** — tell the user the change takes effect after they **restart Claude Code** (Codex: after they **trust the project**).
 - For **lockdown**: Step 5.1b has now written the OS-sandbox config into the **project** (`<proj>/.claude/settings.json` and/or `<proj>/.codex/config.toml`) — it is no longer a manual step. Remind the user it activates on restart (Claude) / trust (Codex), and that it blocks ALL reads of `data/` including LOCAL_MODE analysis scripts (run analysis first, or re-run with `--allow-escalation`). If the generator printed a WARN (foreign `[permissions]` / non-JSON settings), relay it verbatim.
 - Global default: a machine-wide default can be set via the `SCHOLAR_SAFETY_LEVEL` env var; the per-project `_safety_level` key overrides it.

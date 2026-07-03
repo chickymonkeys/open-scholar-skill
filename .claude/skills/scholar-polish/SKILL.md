@@ -679,29 +679,31 @@ OUTDIR="$(dirname "$MD_FILE")"
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 
 # Detect .bib file for citation processing
+# Citation flags as an ARRAY — a quoted string would force `eval pandoc …`, which
+# word-splits spaced paths ("…/My Drive/…") and executes $(…)/backticks in BASE/BIB_FILE.
 BIB_FILE=""
-CITEPROC_FLAGS=""
+CITEPROC_ARGS=()
 for bib_candidate in "${OUTDIR}/references.bib" "${OUTPUT_ROOT}/citations/"*.bib "${OUTPUT_ROOT}/"*/citations/*.bib; do
   if [ -f "$bib_candidate" ]; then
     BIB_FILE="$(cd "$(dirname "$bib_candidate")" && pwd)/$(basename "$bib_candidate")"
-    CITEPROC_FLAGS="--citeproc --bibliography=\"$BIB_FILE\" --metadata reference-section-title=\"References\""
+    CITEPROC_ARGS=(--citeproc --bibliography="$BIB_FILE" --metadata reference-section-title="References")
     echo "Found .bib for citation processing: $BIB_FILE"
     break
   fi
 done
 
-eval pandoc "${BASE}.md" -o "${BASE}.docx" \
-  $CITEPROC_FLAGS \
+pandoc "${BASE}.md" -o "${BASE}.docx" \
+  "${CITEPROC_ARGS[@]}" \
   --reference-doc="$HOME/.pandoc/reference.docx" 2>/dev/null \
-  || eval pandoc "${BASE}.md" -o "${BASE}.docx" $CITEPROC_FLAGS
+  || pandoc "${BASE}.md" -o "${BASE}.docx" "${CITEPROC_ARGS[@]}"
 
-eval pandoc "${BASE}.md" -o "${BASE}.tex" --standalone \
-  $CITEPROC_FLAGS \
+pandoc "${BASE}.md" -o "${BASE}.tex" --standalone \
+  "${CITEPROC_ARGS[@]}" \
   -V geometry:margin=1in -V fontsize=12pt
 
-eval pandoc "${BASE}.md" -o "${BASE}.pdf" \
+pandoc "${BASE}.md" -o "${BASE}.pdf" \
   --pdf-engine=xelatex \
-  $CITEPROC_FLAGS \
+  "${CITEPROC_ARGS[@]}" \
   -V geometry:margin=1in -V fontsize=12pt 2>/dev/null \
   || echo "PDF generation requires a LaTeX engine"
 

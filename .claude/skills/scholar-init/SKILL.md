@@ -205,7 +205,7 @@ Do not create one from thin air — that risks overwriting a project the user is
 ### Step 2.2 — Enumerate NEEDS_REVIEW entries
 
 ```bash
-jq -r 'to_entries[] | select(.value | startswith("NEEDS_REVIEW:")) | "\(.key)\t\(.value)"' .claude/safety-status.json
+jq -r 'to_entries[] | select(.value == "NEEDS_REVIEW" or (.value | startswith("NEEDS_REVIEW:"))) | "\(.key)\t\(.value)"' .claude/safety-status.json
 ```
 
 If the output is empty, print:
@@ -236,7 +236,9 @@ Then run `bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "<file>"` 
 
 **(b) Check if the file is qualitative (audio / transcript / interview).**
 
-Before presenting options, classify the file by extension. The list below is the EXACT set that the PreToolUse hook enforces (`pretooluse-data-guard.sh`). If this skill refuses OVERRIDE on an extension that the hook allows, or vice versa, the enforcement is inconsistent and a user could bypass via hand-edit.
+Before presenting options, classify the file by extension **or** path — the same PATH-OR-EXTENSION rule the PreToolUse hook enforces (`pretooluse-data-guard.sh`: the OVERRIDE extension list plus `is_qual_path`). If this skill offers OVERRIDE on a file the hook refuses, or vice versa, the enforcement is inconsistent: the review loop would record a decision the guard never honors.
+
+**By extension** (qualitative regardless of location):
 
 ```
 wav mp3 flac m4a ogg aac aiff         ← audio (voiceprints are biometric PII)
@@ -244,7 +246,9 @@ mp4 mov avi mkv webm                   ← video
 eaf textgrid trs cha praat             ← linguistics transcripts
 ```
 
-…then this file is **qualitative data**. Per policy §4, qualitative data:
+**By path** (text documents inside qualitative directories): a `txt`/`rtf`/`docx`/`doc`/`odt`/`md` file whose path contains a `transcripts/`, `interviews/`, `field-notes/` (also `fieldnotes/`, `field_notes/`), `participants/`, `subjects/`, `respondents/`, or `materials/` segment — a `.txt` in `transcripts/` quotes participants just like a `.wav` records them. `materials/` is included because consent forms and field notes routinely live beside public codebooks; refusing OVERRIDE on the whole subtree is the conservative default. (Code files like `.R`/`.py` in those directories are not qualitative data.)
+
+If the file matches either axis, it is **qualitative data**. Per policy §4, qualitative data:
 
 - Cannot be "OVERRIDDEN" as non-sensitive — a voiceprint is biometric PII regardless of content, and an interview transcript quotes a participant verbatim. There is no rationale that makes these safe to read in cloud AI.
 - Has only three valid resolutions: `LOCAL_MODE`, `ANONYMIZED` (via scholar-qual's Presidio anonymizer), or `HALT`.
@@ -327,19 +331,21 @@ Block until the user types a rationale ≥ 20 characters. Do not accept "n/a", "
 python3 "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/anonymize-presidio.py" anonymize "<file>"
 ```
 
-The anonymizer writes `ANON_<file>` next to the original. Re-scan the output:
+The anonymizer writes `ANON_<basename>` to `${OUTPUT_ROOT:-output}/qual/anonymized/` — NOT next to the original (see `anonymize-presidio.py`; the pseudonym key lands in the same directory as `pseudonym-key-DO-NOT-SHARE.csv`). If Presidio detects **no PII**, the script exits 0 WITHOUT writing an output file ("No PII detected") — in that case there is nothing to re-scan: keep the original's `NEEDS_REVIEW` status and re-present the options (the scan flagged something Presidio did not; do not auto-CLEAR). Otherwise re-scan the output:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "ANON_<file>"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "${OUTPUT_ROOT:-output}/qual/anonymized/ANON_<basename>"
 ```
 
 If the re-scan is GREEN, update the sidecar so:
-- The original file remains blocked (status becomes `HALTED` with a note "superseded by ANON_ version")
-- The ANON_ output is added with status `ANONYMIZED`
+- The original file remains blocked — its sidecar value becomes exactly `HALTED`. (The schema rejects annotated values like `"HALTED (superseded)"`, and an invalid sidecar fails the guard closed for the entire project. Record the "superseded by ANON_ version" note in the `logs/init-report.md` decision row instead.)
+- The ANON_ output is added with status `ANONYMIZED`, keyed by its absolute path like every sidecar entry
 
 If the re-scan is still YELLOW/RED, tell the user and restart the loop for that file.
 
 **(f) Update `.claude/safety-status.json` atomically.**
+
+Sidecar keys are **absolute file paths** (`sidecar-schema.sh`), and the guard's lookup has no relative-path fallback — `$FILE` below must be the key **verbatim as enumerated in Step 2.2**. Updating a relative spelling would add a dead duplicate entry while the original `NEEDS_REVIEW` key keeps blocking.
 
 ```bash
 jq --arg k "$FILE" --arg v "$NEW_STATUS" '.[$k] = $v' .claude/safety-status.json > .claude/safety-status.json.new \
@@ -403,7 +409,7 @@ For each argument after `add`:
 1. Determine destination: `data/raw/` unless the user passed `--materials`.
 2. Copy (default) or symlink (`--link`) into place, handling name collisions with a numeric suffix.
 3. Run `safety-scan.sh` on the new file.
-4. Add an entry to `.claude/safety-status.json` using `jq` (GREEN → CLEARED; YELLOW/RED → NEEDS_REVIEW:<level>).
+4. Add an entry to `.claude/safety-status.json` using `jq` (GREEN → CLEARED; YELLOW/RED → NEEDS_REVIEW:<level>), keyed by the file's **absolute path** (matching `sidecar-schema.sh` — the guard's lookup has no relative-path fallback).
 5. Append an "Added:" row to `logs/init-report.md`.
 
 ### Step 3.3 — If any NEEDS_REVIEW, enter MODE 2
@@ -421,8 +427,10 @@ echo "=== Project Status ==="
 echo "Directory: $(pwd)"
 echo ""
 if [ -f .claude/safety-status.json ]; then
+  jq -r '"Safety level: " + (._safety_level // "standard")' .claude/safety-status.json
   jq -r '
     to_entries |
+    map(select(.key | startswith("_") | not)) |    # _safety_level etc. are meta keys, not files
     group_by(.value | split(":")[0]) |
     map({status: .[0].value | split(":")[0], count: length}) |
     .[] | "\(.count)\t\(.status)"
@@ -444,7 +452,7 @@ Then print a list of NEEDS_REVIEW files (if any) and recommend `/scholar-init re
 
 2. **Never write CLEARED for a RED file without a typed OVERRIDE rationale.** The audit trail depends on this.
 
-3. **Never offer `[D] OVERRIDE` for qualitative files** — audio (`wav`/`mp3`/`flac`/`m4a`/`ogg`/`aac`/`aiff`), video (`mp4`/`mov`/`avi`/`mkv`/`webm`), or interview transcripts (`eaf`/`textgrid`/`trs`/`cha`/`praat`). Voiceprints are biometric PII and interview text quotes participants verbatim — there is no "false positive" resolution. Only LOCAL_MODE, ANONYMIZED, or HALT are valid for these files. See policy §4.
+3. **Never offer `[D] OVERRIDE` for qualitative files** — classified by extension OR path, mirroring the guard's rule: audio (`wav`/`mp3`/`flac`/`m4a`/`ogg`/`aac`/`aiff`), video (`mp4`/`mov`/`avi`/`mkv`/`webm`), interview transcripts (`eaf`/`textgrid`/`trs`/`cha`/`praat`), **or any text document (`txt`/`rtf`/`docx`/`doc`/`odt`/`md`) under a `transcripts/`, `interviews/`, `field-notes/`, `fieldnotes/`, `field_notes/`, `participants/`, `subjects/`, `respondents/`, or `materials/` directory**. Voiceprints are biometric PII and interview text quotes participants verbatim — there is no "false positive" resolution. Only LOCAL_MODE, ANONYMIZED, or HALT are valid for these files. See policy §4. (The guard enforces this on both axes — `pretooluse-data-guard.sh` qualitative-OVERRIDE handler — so an OVERRIDE recorded here for a path-classified file would be refused at every Read.)
 
 4. **Require a rationale ≥ 20 characters for every OVERRIDE decision.** Strings like "ok", "n/a", "false positive" on their own are not acceptable. The rationale is logged verbatim to `logs/init-report.md` and becomes the IRB audit record.
 
@@ -527,7 +535,7 @@ Check `logs/init-report.md` — if it was written, the directory is partially co
 Edit `.claude/safety-status.json` with `jq` to change the entry, and append a correction row to `logs/init-report.md`. Never silently overwrite — the correction trail is part of the audit.
 
 **"Presidio isn't installed, so the anonymizer can't run."**  
-The script falls back to regex-based detection. Tell the user this and offer to install Presidio via `setup.sh` re-run.
+Scanning (`safety-scan.sh`) falls back to regex-based detection, but **anonymization does not** — `anonymize-presidio.py anonymize` imports Presidio unconditionally and dies with an ImportError without it. Tell the user and offer to install Presidio via `setup.sh` re-run; until then the file's valid resolutions are LOCAL_MODE or HALT.
 
 **"safety-scan.sh is missing."**  
 This means the plugin is broken. Refuse to proceed and tell the user to run `bash setup.sh` from the plugin directory.
