@@ -2,6 +2,8 @@
   <img src="assets/logo.svg" alt="Open Scholar Skill" width="560">
 </p>
 
+**English** | [简体中文](README.zh-CN.md)
+
 # Open Scholar Skill — Academic Paper Writing for Claude Code
 
 > **Copyright (c) 2025-2026 Open Scholar Skill Contributors**
@@ -9,6 +11,8 @@
 > Commercial use requires separate written permission from the author.
 
 A Claude Code project for social scientists writing for top-tier journals. Covers the full research pipeline from literature synthesis to submission-ready manuscripts.
+
+Built for **Claude Code**, but not locked to it: the skills are plain-markdown instruction folders that **OpenAI Codex** and other coding agents can load too. Link them into `~/.codex/skills` and invoke them in natural language ("Use scholar-idea to sharpen this research question"). The data-safety layer travels with the host — `/scholar-init` installs the same PreToolUse guard as a Codex hook in `<project>/.codex/config.toml` (see [Data Safety](#data-safety-v590)).
 
 > **If you use open-scholar-skill, please cite [Zhang (2026), arXiv:2602.22401](https://arxiv.org/abs/2602.22401).** See the [Citation](#citation) section below for the full reference and BibTeX.
 
@@ -30,7 +34,7 @@ This open-source release intentionally **does not include** `scholar-full-paper`
 
 It **does** include `scholar-auto-research`, a stable, deterministic pipeline that chains the modular skills from idea or data to a verified manuscript — but **this is not autonomous research, and we do not endorse using it as such.** It differs from the orchestrators above in three ways that are designed to keep you in control: (1) a mandatory **human-in-the-loop mode** that stops for your explicit approval between phases (`set-mode human-in-loop`); (2) deterministic, auditable gates at every phase — results locks, citation-metadata verification, four-agent manuscript verification, and a journal-calibrated quality review — that surface what to inspect rather than hide it; and (3) a hard rule that the specialist skills (`scholar-write`, `scholar-citation`, `scholar-respond`, …) do the substantive scholarly work, so no helper script silently becomes the author of your argument, literature synthesis, or citations. **You remain the author of the research question, the argument, and every interpretation.** Run it in autonomous mode only when you will independently verify every output it produces — the same standard as point 2 in [Ethical Use](#ethical-use-of-ai-in-academic-research) above. When in doubt, run the skills individually and stay in the loop at every step.
 
-The 32 modular skills provided here are the same building blocks. You are encouraged to build your own workflow by chaining skills in the order that fits your research process. A typical pipeline looks like:
+The 34 modular skills provided here are the same building blocks. You are encouraged to build your own workflow by chaining skills in the order that fits your research process. A typical pipeline looks like:
 
 ```
 /scholar-init (set up project + data safety)
@@ -166,7 +170,7 @@ If you are using open-scholar-skill to generate papers, you are encouraged to sh
 |-------|--------|---------|
 | `sync-docs` | `/sync-docs` | Synchronize content across presentation slides, speaker script, and manuscript — audits for stale references, numbers, citations, and version mismatches |
 
-## Agents (19 total: 9 peer-reviewer + 4 verification + 6 code-review)
+## Agents (20 total: 9 peer-reviewer + 5 verification + 6 code-review)
 
 | Agent | Role |
 |-------|------|
@@ -188,6 +192,7 @@ If you are using open-scholar-skill to generate papers, you are encouraged to sh
 | `verify-figures` | Raw figure files vs. manuscript figure descriptions and captions |
 | `verify-logic` | Statistical claims in prose traced back to tables/figures — catches misquoted numbers, significance errors |
 | `verify-completeness` | Full artifact chain integrity — orphaned/missing items, numbering, cross-references |
+| `verify-claim-faithfulness` | Sentence-level check that each cited source actually supports the claim attributed to it — catches misattribution, reversed direction, magnitude overclaim, scope overgeneralization |
 
 ### Code Review Agents (used by `scholar-code-review`)
 
@@ -211,7 +216,7 @@ bash setup.sh
 1. Create symlinks (`skills/` → `.claude/skills/`, `agents/` → `.claude/agents/`)
 2. Auto-detect your Zotero library (or prompt for path)
 3. Optionally configure BibTeX, EndNote, and CrossRef email
-4. Install all 33 skills + 19 agents as **personal skills** in `~/.claude/skills/` and `~/.claude/agents/` — installed per-entry alongside any existing personal skills
+4. Install all 33 skills + 20 agents as **personal skills** in `~/.claude/skills/` and `~/.claude/agents/` — installed per-entry alongside any existing personal skills
 5. Register the PreToolUse data-safety hook in `~/.claude/settings.json` (idempotent; preserves existing settings)
 6. Check for `jq` and `python3` (required by the data-safety hook)
 7. Write a `.env` file with your configuration

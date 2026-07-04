@@ -3,6 +3,13 @@
 All notable changes to open-scholar-skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.17.0] - 2026-07-04
+
+### Bilingual documentation — Simplified Chinese README + USAGE, multi-agent positioning
+
+- **`README.zh-CN.md` + `USAGE.zh-CN.md`:** full Simplified Chinese translations of the two user-facing docs (prose translated to academic-register 简体中文; commands, code blocks, file paths, skill names, BibTeX, and journal names kept in English; internal anchors re-slugged for the translated headings). Language-switcher links added at the top of all four files.
+- **Codex / other-agents positioning:** new top-of-doc paragraph in both languages and both docs — the skills are plain-markdown instruction folders that OpenAI Codex and other coding agents can load (`~/.codex/skills` + natural-language invocation), with the data-safety guard traveling to the Codex host via the `/scholar-init`-installed adapter hook.
+
 ## [5.16.2] - 2026-07-04
 
 ### Data-guard fix — Bash tokenizer dropped the final token (fail-open) + metadata trues-up

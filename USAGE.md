@@ -1,7 +1,11 @@
 # Open Scholar Skill — User Guide
 
+**English** | [简体中文](USAGE.zh-CN.md)
+
 A Claude Code project for social scientists writing for top-tier journals.
-31 scholar skills + 1 utility (32 total) covering the full research pipeline from idea exploration to collaboration.
+33 scholar skills + 1 utility (34 total) covering the full research pipeline from idea exploration to collaboration.
+
+Built for **Claude Code**; the skills also work in **OpenAI Codex** and other coding agents that can load markdown skill folders — link `.claude/skills/*` into `~/.codex/skills` and invoke skills by name in natural language ("Use scholar-lit-review to map the literature on residential segregation and health"). The data-safety guard ships a Codex adapter hook, installed by `/scholar-init` (see the Data Safety section).
 
 ---
 
@@ -446,7 +450,7 @@ Spawns multiple parallel OpenAI Codex CLI agents (`codex exec`) to independently
 
 Every reference must be verified to exist via the 7-tier verification hierarchy (Zotero → CrossRef → Semantic Scholar → OpenAlex → Google Scholar → WebSearch) before inclusion. If a source cannot be verified, it is flagged as `[SOURCE NEEDED]` — never inserted as if real. This applies across all six modes.
 
-#### Five modes
+#### Six modes
 
 **`insert`** — for a manuscript that has claims but no citations yet:
 1. Searches Zotero library for verified bibliographic metadata matching each claim
@@ -795,7 +799,7 @@ bash scripts/init-project.sh --dest ~/research --link nhanes-bmi ~/Downloads/nha
 
 **Why this exists.** Before v5.9.0, data-touching skills loaded files via the `Read` tool, which sends contents to the Anthropic API. For IRB-protected interviews, restricted NHANES/PSID data, HIPAA-covered health records, and any file containing PII, that was a data-use-agreement violation waiting to happen. `/scholar-init` is the ingestion-time half of the fix: every file that lands in `data/raw/` gets scanned and triaged before any downstream skill can touch it. The interactive `review` mode walks you through every `NEEDS_REVIEW` entry — this is the "slow down and decide" step that keeps you in the loop exactly as the README's ethical-use section describes.
 
-**The five `SAFETY_STATUS` values (defined in `.claude/skills/_shared/data-handling-policy.md`):**
+**The five `SAFETY_STATUS` resolution values, plus the transitional `NEEDS_REVIEW` state (defined in `.claude/skills/_shared/data-handling-policy.md`):**
 
 | Status | Meaning | What downstream skills may do |
 |---|---|---|
@@ -1162,6 +1166,6 @@ theoretical traditions (coloniality, Ubuntu, guanxi). Invoke with the specific a
 
 ## Version
 
-Current version: **5.6.0**
+Current version: **5.17.0** (see `CHANGELOG.md` for history)
 Project location: this repository's root directory
-Skills: 28 + 1 utility (in `.claude/skills/`) | Agents: 19 (9 peer-reviewer + 4 verification + 6 code-review, in `.claude/agents/`) | Reference files: ~44 | Asset articles: ~127 (pre-indexed in article-knowledge-base.md)
+Skills: 33 + 1 utility (in `.claude/skills/`) | Agents: 20 (9 peer-reviewer + 5 verification + 6 code-review, in `.claude/agents/`)
