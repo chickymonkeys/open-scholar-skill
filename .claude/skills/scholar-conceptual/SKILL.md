@@ -42,34 +42,28 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 mkdir -p "${OUTPUT_ROOT}/theory" "${OUTPUT_ROOT}/figures" "${OUTPUT_ROOT}/logs" "${OUTPUT_ROOT}/scripts"
 ```
 
-**Process Logging (REQUIRED):**
+**Process Logging (REQUIRED) — Reasoning · Action · Observation trace:**
 
-Read and follow the process logging protocol in `.claude/skills/_shared/process-logger.md`.
+This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-conceptual-<date>.ndjson` — the source of truth. The human-readable `process-log-scholar-conceptual-<date>.md` is *rendered* from it. Full protocol + privacy rule: `_shared/process-logger.md`.
+
+At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
+
+```bash
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-conceptual --step "<label>" \
+  --reasoning "<the WHY — stated rationale, 1–2 lines>" \
+  --action "<the WHAT — tool/script/gate call + key args>" \
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+```
+
+At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-mkdir -p "${OUTPUT_ROOT}/logs"
-SKILL_NAME="scholar-conceptual"
-LOG_DATE=$(date +%Y-%m-%d)
-LOG_FILE="${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}.md"
-if [ -f "$LOG_FILE" ]; then
-  CTR=2; while [ -f "${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}-${CTR}.md" ]; do CTR=$((CTR+1)); done
-  LOG_FILE="${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}-${CTR}.md"
-fi
-cat > "$LOG_FILE" << LOGHEADER
-# Process Log: /${SKILL_NAME}
-- **Date**: ${LOG_DATE}
-- **Time started**: $(date +%H:%M:%S)
-- **Arguments**: [raw arguments]
-- **Working Directory**: $(pwd)
-
-## Steps
-
-| # | Timestamp | Step | Action | Output | Status |
-|---|-----------|------|--------|--------|--------|
-LOGHEADER
-echo "Process log: $LOG_FILE"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-conceptual-$(date +%Y-%m-%d).ndjson"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-conceptual
 ```
+
+Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
 
 **Source visualization theme (for diagram output):**
 

@@ -466,6 +466,33 @@ Then print a list of NEEDS_REVIEW files (if any) and recommend `/scholar-init re
 
 ---
 
+## Process Logging (REQUIRED)
+
+**Process Logging (REQUIRED) — Reasoning · Action · Observation trace:**
+
+This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-init-<date>.ndjson` — the source of truth. The human-readable `process-log-scholar-init-<date>.md` is *rendered* from it. Full protocol + privacy rule: `_shared/process-logger.md`.
+
+At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
+
+```bash
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-init --step "<label>" \
+  --reasoning "<the WHY — stated rationale, 1–2 lines>" \
+  --action "<the WHAT — tool/script/gate call + key args>" \
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+```
+
+At the end (Save Output), render the human-readable log and self-check:
+
+```bash
+OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-init-$(date +%Y-%m-%d).ndjson"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-init
+```
+
+Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
+
+---
+
 ## Save Output
 
 scholar-init does NOT produce a manuscript document; it produces an initialized project directory plus two audit artifacts. Confirm the following files to the user after every run, and do NOT re-run pandoc conversion (this is not a writing skill).

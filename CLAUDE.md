@@ -111,8 +111,12 @@ The 11 data-touching skills in this repo are all gated (6 Tier A, 5 Tier B). `sc
 - Unverified claims flagged as `[CITATION NEEDED]`
 - Run `bash scripts/gates/verify-citations.sh <draft>` before finalizing
 
-### Process Logging
-Every skill auto-generates `output/logs/process-log-[skill]-[YYYY-MM-DD].md`. Protocol in `_shared/process-logger.md`.
+### Process Logging — RAO Trace (reasoning · action · observation)
+Every skill run leaves an append-only NDJSON **trace** at `output/logs/trace-[skill]-[YYYY-MM-DD].ndjson` capturing, per step, the stated **reasoning** (the "why"), the **action** (tool/script/gate/subagent call), and the **observation** (verdict/metric/file). The human-readable `output/logs/process-log-[skill]-[YYYY-MM-DD].md` is now a *rendered view* of the trace, not a hand-written table. Protocol: `_shared/process-logger.md`; agent side: `_shared/agent-trace-contract.md`.
+
+- **Writer:** `scripts/gates/emit-trace.sh` (one record per step; derives `seq` from the file, so it is stateless across Bash blocks). **Renderer:** `scripts/gates/render-trace.sh`. **Agent fold-in:** `scripts/gates/ingest-agent-trace.sh` (Write-only agents emit a `<report>.trace.ndjson` sidecar + a `TRACE:` stdout line; the orchestrator folds it into the master trace). **Hard gate:** `scripts/gates/trace-coverage-check.sh` RED-fails a phase/skill with no valid trace, a malformed/incomplete record, or a dispatched `agentId` that has no trace event.
+- **Privacy (C-01 / LOCAL_MODE):** traces carry aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
+- Static enforcement: `tests/smoke/test-all-skills-emit-trace.sh` ratchets that every skill calls `emit-trace.sh` and every agent carries the RAO Trace sidecar contract.
 
 ### Output Formats
 Manuscript skills generate 4 formats: `.md`, `.docx`, `.tex`, `.pdf` via pandoc.

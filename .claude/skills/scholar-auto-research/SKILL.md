@@ -573,6 +573,33 @@ Workflow:
 12. Mark `pipeline_complete: true` only when the reviewer-facing manuscript is clean, Stage A is GREEN, Stage B is GREEN and current-hash-bound, all four submission formats exist, manifests are complete, canonical and versioned hashes match, and no open finding remains.
 13. Run `auto-research-verify.sh 20 "$PROJ"`. The auto-research default route is complete only after this gate passes.
 
+## Process Logging (REQUIRED)
+
+**Process Logging (REQUIRED) — Reasoning · Action · Observation trace:**
+
+This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-auto-research-<date>.ndjson` — the source of truth. The human-readable `process-log-scholar-auto-research-<date>.md` is *rendered* from it. Full protocol + privacy rule: `_shared/process-logger.md`.
+
+At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
+
+```bash
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-auto-research --step "<label>" \
+  --reasoning "<the WHY — stated rationale, 1–2 lines>" \
+  --action "<the WHAT — tool/script/gate call + key args>" \
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+```
+
+At the end (Save Output), render the human-readable log and self-check:
+
+```bash
+OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-auto-research-$(date +%Y-%m-%d).ndjson"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-auto-research
+```
+
+Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
+
+---
+
 ## Hard Rules
 
 - No file-exists-only pass for phases 11-20.

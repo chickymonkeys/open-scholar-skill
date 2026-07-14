@@ -57,26 +57,28 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 mkdir -p "${OUTPUT_ROOT}/simulate"/{design,personas,runs,validation,reports,logs}
 ```
 
-**Process Logging (REQUIRED).** Initialize the log now:
+**Process Logging (REQUIRED) — Reasoning · Action · Observation trace:**
+
+This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-simulate-<date>.ndjson` — the source of truth. The human-readable `process-log-scholar-simulate-<date>.md` is *rendered* from it. Full protocol + privacy rule: `_shared/process-logger.md`.
+
+At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-OUTPUT_ROOT="${OUTPUT_ROOT:-output}"; mkdir -p "${OUTPUT_ROOT}/simulate/logs"
-SKILL_NAME="scholar-simulate"; LOG_DATE=$(date +%Y-%m-%d)
-LOG_FILE="${OUTPUT_ROOT}/simulate/logs/process-log-${SKILL_NAME}-${LOG_DATE}.md"
-if [ -f "$LOG_FILE" ]; then
-  CTR=2; while [ -f "${OUTPUT_ROOT}/simulate/logs/process-log-${SKILL_NAME}-${LOG_DATE}-${CTR}.md" ]; do CTR=$((CTR+1)); done
-  LOG_FILE="${OUTPUT_ROOT}/simulate/logs/process-log-${SKILL_NAME}-${LOG_DATE}-${CTR}.md"
-fi
-cat > "$LOG_FILE" << 'LOGHEADER'
-# Process Log: /scholar-simulate
-## Steps
-| # | Timestamp | Step | Action | Output | Status |
-|---|-----------|------|--------|--------|--------|
-LOGHEADER
-echo "Process log initialized: $LOG_FILE"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-simulate --step "<label>" \
+  --reasoning "<the WHY — stated rationale, 1–2 lines>" \
+  --action "<the WHAT — tool/script/gate call + key args>" \
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
 ```
 
-Re-derive `LOG_FILE` in every Bash block (shell state does not persist) and append one row per numbered step.
+At the end (Save Output), render the human-readable log and self-check:
+
+```bash
+OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-simulate-$(date +%Y-%m-%d).ndjson"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-simulate
+```
+
+Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
 
 **Step 0 — Data Safety Gate (MANDATORY when real human data is involved).** Persona construction from real microdata (GSS/ANES/CCES/census extracts) and all validation benchmarks are real human data and route through the safety stack. Read `.claude/safety-status.json`; honor `SAFETY_STATUS ∈ {CLEARED, LOCAL_MODE, ANONYMIZED, OVERRIDE, HALTED}` per `_shared/data-handling-policy.md`. Under `LOCAL_MODE`, do the raking/validation inside `Rscript -e` / `python3 -` scripts and emit only aggregated distributions (suppress cells with n<10) — never `Read` the raw microdata into the conversation. **Synthetic outputs are not human data** and are not gated; the *seed* microdata is.
 

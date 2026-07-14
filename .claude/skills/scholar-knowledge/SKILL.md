@@ -80,36 +80,28 @@ SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
 eval "$(cat "$SKILL_DIR/scholar-knowledge/references/knowledge-graph-search.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
 ```
 
-### 0c. Process Logging (REQUIRED)
+### 0c. Process Logging (REQUIRED) — Reasoning · Action · Observation trace
 
-Read and follow the process logging protocol in `.claude/skills/_shared/process-logger.md`.
+This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-knowledge-<date>.ndjson` — the source of truth. The human-readable `process-log-scholar-knowledge-<date>.md` is *rendered* from it. Full protocol + privacy rule: `_shared/process-logger.md`.
+
+At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
+
+```bash
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-knowledge --step "<label>" \
+  --reasoning "<the WHY — stated rationale, 1–2 lines>" \
+  --action "<the WHAT — tool/script/gate call + key args>" \
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+```
+
+At the end (Close Process Log), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-SKILL_NAME="scholar-knowledge"
-LOG_DATE=$(date +%Y-%m-%d)
-mkdir -p "${OUTPUT_ROOT}/logs"
-LOG_FILE="${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}.md"
-if [ -f "$LOG_FILE" ]; then
-  V=2
-  while [ -f "${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}-${V}.md" ]; do V=$((V+1)); done
-  LOG_FILE="${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}-${V}.md"
-fi
-cat > "$LOG_FILE" << LOGHEADER
-# Process Log: /scholar-knowledge
-- **Date**: $LOG_DATE
-- **Time started**: $(date +%H:%M:%S)
-- **Arguments**: $ARGUMENTS
-- **Working Directory**: $(pwd)
-- **Knowledge Dir**: $KNOWLEDGE_DIR
-
-## Steps
-
-| # | Timestamp | Step | Action | Output | Status |
-|---|-----------|------|--------|--------|--------|
-LOGHEADER
-echo "Process log: $LOG_FILE"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-knowledge-$(date +%Y-%m-%d).ndjson"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-knowledge
 ```
+
+Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
 
 ---
 

@@ -48,49 +48,28 @@ mkdir -p "${OUTPUT_ROOT}/logs"
 # Process Logging — see below
 ```
 
-**Process Logging (REQUIRED):**
+**Process Logging (REQUIRED) — Reasoning · Action · Observation trace:**
 
-Initialize the process log NOW by running:
+This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-lit-review-hypothesis-<date>.ndjson` — the source of truth. The human-readable `process-log-scholar-lit-review-hypothesis-<date>.md` is *rendered* from it. Full protocol + privacy rule: `_shared/process-logger.md`.
+
+At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
+
+```bash
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-lit-review-hypothesis --step "<label>" \
+  --reasoning "<the WHY — stated rationale, 1–2 lines>" \
+  --action "<the WHAT — tool/script/gate call + key args>" \
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+```
+
+At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-mkdir -p "${OUTPUT_ROOT}/logs"
-SKILL_NAME="scholar-lit-review-hypothesis"
-LOG_DATE=$(date +%Y-%m-%d)
-LOG_FILE="${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}.md"
-if [ -f "$LOG_FILE" ]; then
-  CTR=2; while [ -f "${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}-${CTR}.md" ]; do CTR=$((CTR+1)); done
-  LOG_FILE="${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}-${CTR}.md"
-fi
-cat > "$LOG_FILE" << LOGHEADER
-# Process Log: /${SKILL_NAME}
-- **Date**: ${LOG_DATE}
-- **Time started**: $(date +%H:%M:%S)
-- **Arguments**: [raw arguments]
-- **Working Directory**: $(pwd)
-
-## Steps
-
-| # | Timestamp | Step | Action | Output | Status |
-|---|-----------|------|--------|--------|--------|
-LOGHEADER
-echo "Process log initialized: $LOG_FILE"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-lit-review-hypothesis-$(date +%Y-%m-%d).ndjson"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-lit-review-hypothesis
 ```
 
-**After EVERY numbered step**, append a row by running:
-
-```bash
-OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-SKILL_NAME="scholar-lit-review-hypothesis"
-LOG_DATE=$(date +%Y-%m-%d)
-LOG_FILE="${OUTPUT_ROOT}/logs/process-log-${SKILL_NAME}-${LOG_DATE}.md"
-if [ ! -f "$LOG_FILE" ]; then
-  LOG_FILE=$(ls -t "${OUTPUT_ROOT}"/logs/process-log-${SKILL_NAME}-${LOG_DATE}*.md 2>/dev/null | head -1)
-fi
-echo "| [step#] | $(date +%H:%M:%S) | [Step Name] | [1-line action summary] | [output files or —] | ✓ |" >> "$LOG_FILE"
-```
-
-**IMPORTANT:** Shell variables do NOT persist across Bash tool calls. Every step MUST re-derive LOG_FILE before appending.
+Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
 
 **Source Integrity (REQUIRED):**
 

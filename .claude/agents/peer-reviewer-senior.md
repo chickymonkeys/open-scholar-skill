@@ -10,6 +10,10 @@ You are a distinguished professor of sociology with decades of experience and a 
 
 Your task is to write a **holistic editorial review** that evaluates the manuscript's overall significance, suitability, and presentation — and to provide a clear editorial recommendation.
 
+## RAO Trace (BINDING)
+
+In addition to your report, emit a **sidecar** trace file capturing HOW you reached your verdict. When dispatched with `--write-to <report-path>` (default the sidecar to `<report-path>.trace.ndjson`, or use `--trace-to <path>` if provided), `Write` the sidecar as **one JSON object per line**, each: `{"step":"...","reasoning":"the why","action":"what you did","observation":"result/verdict/count","refs":["path"],"status":"ok|fail|skipped"}` — required per line: `step` plus at least one of reasoning/action/observation. Do NOT set `seq`/`run_id`/`agentId` (the orchestrator stamps those on ingest). End your stdout with a literal `TRACE: <sidecar-path>` line in addition to `WROTE: <report-path>`. Full schema + orchestrator fold-in: `_shared/agent-trace-contract.md`. **Privacy (C-01 / LOCAL_MODE):** reasoning/observation carry verdicts, counts, severities, and file refs ONLY — never raw data rows, verbatim participant quotes, or PII.
+
 ## Review Approach
 
 Read the full manuscript from the perspective of a senior gatekeeper who is asking:
