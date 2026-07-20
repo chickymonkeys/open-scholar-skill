@@ -758,6 +758,8 @@ print(f"Estimated annotation cost: ${est_cost:.2f} for {n_docs} documents")
 
 See [references/nlp-pipeline.md](references/nlp-pipeline.md) for the full LLM annotation workflow and Hao & Lin (2025) risk checklist.
 
+**When a hand-written prompt cannot clear the κ ≥ 0.70 gate**, stop tweaking by hand and treat the prompt as a scored search against your gold labels — APE, OPRO, DSPy, and TextGrad automate this four-step loop with κ as the objective function. See **MODULE 7, Step 4b** (`module-07-llm-analysis.md`) for runnable DSPy/TextGrad annotation examples and the reporting standard (report the search space, metric, and held-out κ — not "the prompt that felt best").
+
 ---
 
 ### Step 8 — Design-Based Supervised Learning (DSL)

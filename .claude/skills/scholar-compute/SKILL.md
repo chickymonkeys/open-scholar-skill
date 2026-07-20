@@ -43,6 +43,7 @@ If the argument contains causal keywords — `effect of`, `impact of`, `causal`,
 | `conformal`, `conformal prediction`, `prediction set`, `prediction interval`, `coverage guarantee`, `mapie`, `uncertainty quantification` | MODULE 2 (Step 5c) |
 | `gnn`, `node embedding`, `node2vec`, `graphsage`, `gcn`, `graph neural`, `link prediction`, `node classification` | MODULE 3 (Step 2b) |
 | `multimodal`, `multimodal fusion`, `text image`, `clip fusion`, `late fusion`, `early fusion`, `text-image alignment` | MODULE 6 (Step 7b) |
+| `prompt optimization`, `optimize prompt`, `prompt search`, `prompt tuning`, `compiled prompt`, `dspy`, `textgrad`, `gepa`, `opro`, `ape`, `mipro`, `copro`, `simba`, `bootstrapfewshot`, `bootstrapfinetune`, `program don't prompt` | MODULE 7 (Step 4b) |
 
 If multiple modules apply, run them in sequence. If unclear, ask the user to specify.
 
@@ -274,7 +275,7 @@ Follow the script version control protocol defined in `.claude/skills/_shared/sc
 | `40-49` | MODULE 3: Networks | `40-ergm-estimation.R`, `41-rem-goldfish.R` |
 | `50-59` | MODULE 4: ABM | `50-mesa-abm.py`, `51-netlogo-nlrx.R` |
 | `60-69` | MODULE 6: CV | `60-clip-zero-shot.py`, `61-dinov2-features.py` |
-| `70-79` | MODULE 7: LLM Analysis | `70-structured-extraction.py`, `71-grounded-theory-loop.py` |
+| `70-79` | MODULE 7: LLM Analysis | `70-structured-extraction.py`, `71-grounded-theory-loop.py`, `72-dspy-optimize-prompt.py` |
 | `80-89` | MODULE 8: Synthetic Data | `80-synthetic-survey.py`, `81-validation-ks.R` |
 | `90-94` | MODULE 9: Geospatial | `90-spatial-lag-model.R`, `91-lisa-map.R` |
 | `95-99` | MODULE 10: Audio | `95-whisper-transcription.py`, `96-essentia-features.py` |
@@ -328,7 +329,7 @@ After loading and executing the module, continue with the Quality Checklist and 
 - [ ] Human validation conducted for automated annotation (κ ≥ 0.70)
 - [ ] Performance reported on held-out test set only (not train set)
 - [ ] **MODULE 6 (CV)**: κ ≥ 0.70 on 200-image human-coded benchmark; model name + date archived
-- [ ] **MODULE 7 (LLM Analysis)**: all four Lin & Zhang (2025) epistemic risks assessed; temperature=0; prompts archived
+- [ ] **MODULE 7 (LLM Analysis)**: all four Lin & Zhang (2025) epistemic risks assessed; temperature=0; prompts archived. If a prompt was optimized (Step 4b — DSPy/TextGrad/APE/OPRO): search space + metric + **held-out** κ reported; compiled prompt archived verbatim
 - [ ] **MODULE 8 (Synthetic Data)**: use case appropriate gate passed; validation vs. real human data run; KS/JSD reported; prompts archived
 - [ ] **MODULE 9 (Geospatial)**: Moran's I diagnostic run on OLS residuals; LM tests guide SAR/SEM selection; ρ or λ reported with direct/indirect impacts; LISA map saved; CRS documented
 - [ ] **DSL (if used)**: expert sample is random; N expert labels ≥ 200; bias-corrected estimates compared to naive regression; results saved

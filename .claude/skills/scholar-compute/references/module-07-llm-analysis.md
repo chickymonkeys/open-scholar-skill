@@ -13,6 +13,8 @@ Before designing the LLM pipeline, classify the workflow type and apply correspo
 
 Apply all four Lin & Zhang (2025) epistemic risk checks (from MODULE 1 Step 7) before full deployment: validity, reliability, replicability, transparency.
 
+When a hand-written prompt for **multi-step coding** cannot clear the κ ≥ 0.70 gate, do not keep tweaking by hand — treat prompt construction as a scored search (**Step 4b**: APE, OPRO, DSPy, TextGrad) and report the search space, metric, and held-out κ.
+
 ---
 
 ### Step 2 — Structured Extraction (Pydantic + Claude)
@@ -141,6 +143,121 @@ def classify_grounded(text: str) -> dict:
 
 ---
 
+### Step 4b — Prompt Optimization for Annotation: From Art to Search (APE · OPRO · DSPy · TextGrad)
+
+Steps 2–4 hand-wrote the annotation prompt. That is the folklore era — "we tried a few prompts and this one felt best." Once the corpus is large and the codebook is fixed, prompt construction becomes a **model-selection step**: you search a space of instructions (and demonstrations) against a metric on labeled data, exactly as you would tune any other estimator. Lin & Zhang's (2025) four-step annotation procedure — codebook → pilot → metric gate → held-out validation — **is a hand-rolled optimization loop**; these tools automate the search, with **Cohen's κ as the objective function**, not a footnote.
+
+**The four techniques (art → search):**
+
+| Method | Reference | What it searches |
+|--------|-----------|------------------|
+| **APE** (Automatic Prompt Engineer) | Zhou et al. 2022, [arXiv:2211.01910](https://arxiv.org/abs/2211.01910) | An LLM *proposes* candidate instructions; an LLM *scores* them on a metric; keep the best |
+| **OPRO** (Optimization by PROmpting) | Yang et al. 2023, [arXiv:2309.03409](https://arxiv.org/abs/2309.03409) | The LLM rewrites *its own* prompt against a metric each round ("Take a deep breath…" was *discovered* this way, not invented) |
+| **DSPy** | Khattab et al. 2023, [arXiv:2310.03714](https://arxiv.org/abs/2310.03714); ICLR 2024 | A **framework**, not one algorithm: write module **signatures** (an I/O contract), then pick one of ~13 optimizers (see roster below) to search instructions and/or demonstrations. "Program, don't prompt." |
+| **GEPA** (Genetic-Pareto) | Agrawal et al. 2025, [arXiv:2507.19457](https://arxiv.org/abs/2507.19457); ICLR 2026 (oral) | Reflective prompt **evolution**: keeps a Pareto frontier of prompts and edits them from **natural-language reflection** on your metric's per-item feedback. The NL-feedback idea (cf. TextGrad) built into DSPy (`dspy.GEPA`; also standalone `pip install gepa`); reported to beat MIPROv2 by ~13% with ~35× fewer rollouts |
+| **TextGrad** | Yuksekgonul et al. 2024, [arXiv:2406.07496](https://arxiv.org/abs/2406.07496); *Nature* 2025 | "Textual gradients" — natural-language critique **backpropagated** through a compound-AI graph to rewrite the instruction. The standalone NL-gradient engine |
+
+**When to reach for this** (vs. hand-writing a zero-shot prompt): the codebook is fixed, you have ≥ 20–50 gold-labeled items to search against, and a hand-written zero-shot prompt lands *below* the κ ≥ 0.70 gate — or you simply want a defensible, *reported* search instead of folklore. If zero-shot already clears ~0.80, optimization buys little; spend the labels on the validation set instead.
+
+**DSPy — compile an annotation prompt against κ** (reuses the immigration-frame codebook from Step 3):
+
+```python
+# pip install -U dspy   — provider-agnostic (litellm backend); illustrative sketch, read the docs
+import dspy
+from sklearn.metrics import cohen_kappa_score
+
+dspy.configure(lm=dspy.LM("anthropic/claude-sonnet-4-6", temperature=0))   # any provider
+
+# 1. A SIGNATURE is the annotation task as an I/O contract, not a prompt string
+class FrameCode(dspy.Signature):
+    """Assign the dominant immigration frame to a news article."""
+    article = dspy.InputField()
+    frame   = dspy.OutputField(desc="one of ECONOMIC, SECURITY, HUMANITARIAN, CULTURAL, OTHER")
+
+coder = dspy.ChainOfThought(FrameCode)        # a program, not a prompt
+
+# 2. The METRIC *is* the objective function — the same κ gate you will report.
+#    trainset/devset/testset are lists of dspy.Example(article=..., frame=...) carrying GOLD labels.
+def kappa_metric(example, pred, trace=None):
+    return example.frame == pred.frame.strip().upper()   # per-item; κ is computed on the set
+
+# 3. COMPILE = search the instruction (MIPROv2) or the demonstrations (BootstrapFewShot)
+optimizer = dspy.MIPROv2(metric=kappa_metric, auto="light")       # searches the INSTRUCTION
+compiled  = optimizer.compile(coder, trainset=train_set, valset=dev_set)
+# alt: dspy.BootstrapFewShot(metric=kappa_metric).compile(coder, trainset=train_set)  # searches DEMOS
+
+# 4. REPORT the HELD-OUT score — never the training/dev score the search optimized
+LABELS = ["ECONOMIC", "SECURITY", "HUMANITARIAN", "CULTURAL", "OTHER"]
+gold = [ex.frame for ex in test_set]
+pred = [compiled(article=ex.article).frame.strip().upper() for ex in test_set]
+print("held-out kappa:", cohen_kappa_score(gold, pred, labels=LABELS))
+
+compiled.save("${OUTPUT_ROOT}/scripts/72-compiled-frame-coder.json")   # archive the fitted instrument
+```
+
+**DSPy is a menu, not one optimizer — swap only the `optimizer =` line.** The Signature, the κ metric, and the held-out reporting stay identical; you choose the optimizer by *what the bottleneck is* (demonstrations vs. instruction wording vs. model weights) and *how much gold you have*:
+
+| DSPy optimizer | Tunes | Reach for it when |
+|----------------|-------|-------------------|
+| `LabeledFewShot` | demos | drop in *k* gold examples as demonstrations — no search, ~free |
+| `BootstrapFewShot` | demos | small gold set (≈ ≤ 50); bootstraps demos from the model's *own* correct outputs |
+| `BootstrapFewShotWithRandomSearch` (`BootstrapRS`) | demos | more gold (≈ 50+); random-searches over bootstrapped demo sets — costs real API calls |
+| `KNNFewShot` | demos | choose demonstrations *per input* by nearest-neighbor retrieval |
+| `COPRO` | instructions | beam-search rewrite of the instruction text only |
+| `MIPROv2` | demos + instructions | **the workhorse** — Bayesian search over instructions *and* demos; budget via `auto="light"/"medium"/"heavy"` |
+| `GEPA` | demos + instructions | reflective evolution from NL feedback; needs a metric returning `dspy.Prediction(score=…, feedback=…)`; best when the codebook needs *explained* fixes |
+| `SIMBA` | demos + instructions | self-reflects on the hardest training items to refine the prompt |
+| `InferRules` | demos + instructions | induces explicit natural-language *rules* and folds them into the instruction |
+| `BootstrapFinetune` | demos + **weights** | you control the model (open-weights/local) — distills the prompt into the weights |
+| `BetterTogether` | demos + instructions + **weights** | alternate prompt optimization and finetuning |
+| `Ensemble` | — | combine several compiled programs into one |
+
+*(`AvatarOptimizer` also exists but targets tool-using `Avatar` agents, not annotation programs — out of scope here.)*
+
+**The docs' own default, and why it fits annotation:** *"Demo-tuning tends to overfit; instruction-tuning tends to generalize… if your evaluation set is small or skewed, lean toward instruction optimization."* Gold-labeled annotation sets are exactly that — small and often class-skewed — which is why the demo below shows instruction optimizers (MIPROv2, TextGrad) clearing the κ gate while demonstration selection (BootstrapFewShot) stalls. **Start with `MIPROv2(auto="light")`;** reach for `GEPA` when you want the optimizer to *explain* its edits from your metric's feedback; use `BootstrapFinetune`/`BetterTogether` only if you can fine-tune the model's weights.
+
+**TextGrad — rewrite the instruction from natural-language feedback:**
+
+```python
+# pip install textgrad   — "an autograd engine for textual gradients"; illustrative sketch
+import textgrad as tg
+tg.set_backward_engine("anthropic/claude-sonnet-4-6")
+
+instruction = tg.Variable(
+    "Assign the dominant immigration frame (ECONOMIC/SECURITY/HUMANITARIAN/CULTURAL/OTHER).",
+    requires_grad=True, role_description="annotation instruction")
+
+model     = tg.BlackboxLLM("anthropic/claude-sonnet-4-6", system_prompt=instruction)
+optimizer = tg.TGD(parameters=[instruction])           # textual gradient descent
+
+for article, gold in train_pairs:                      # a few dozen labeled items
+    pred = model(tg.Variable(article, requires_grad=False, role_description="article"))
+    loss = tg.TextLoss(f"Gold frame is {gold}. Critique the instruction so this item is labeled correctly.")(pred)
+    loss.backward()        # NL feedback backpropagated through the graph
+    optimizer.step()       # rewrites the instruction in place
+print(instruction.value)   # the improved instruction — now validate on a HELD-OUT set with κ
+```
+
+**Which tool for an instrument?** For annotation you have *gold labels*, so κ on those labels is the right objective — that is **DSPy's turf** (MIPROv2 and GEPA search the instruction; BootstrapFewShot selects demonstrations). TextGrad's edge is objectives that live **only in words** — an essay, a plan, a free-text answer judged by a rubric — where there is no κ to compute; optimizing toward an LLM judge's taste is weaker than optimizing toward gold labels. APE/OPRO sit in between: lighter-weight instruction search you can run with a few dozen API calls.
+
+**The empirical lesson** (runnable, self-contained demo bundled at [`references/prompt-optimization-demo/`](prompt-optimization-demo/README.md) — `qwen2.5:7b` local via Ollama, 20 training items, a few steps — a real but modest gain that shows the *mechanism*, not a benchmark). On a codebook that *contradicts* the model's prior:
+
+| Method | What it tuned | κ (held-out) |
+|--------|---------------|--------------|
+| Hand-written zero-shot (baseline) | — | 0.667 |
+| TextGrad | the **instruction** | **0.750** |
+| DSPy · MIPROv2 | the **instruction** | **0.750** |
+| DSPy · BootstrapFewShot | the **demonstrations** | 0.667 |
+
+**Optimizing the instruction moved the needle; selecting demonstrations did not** — BootstrapFewShot only bootstraps examples the model *already* gets right, so it never surfaces the hard cases where the codebook fights the model's intuition.
+
+**Reporting template:**
+> "We treated prompt construction as a model-selection step rather than authorship. Using [DSPy MIPROv2 / TextGrad / OPRO], we searched over [instructions / instructions + few-shot demonstrations] to maximize Cohen's κ on an [N]-item training split, selected the compiled prompt on an [N]-item development split, and report agreement on a **held-out** [N]-item test split (κ = [X]; hand-written zero-shot baseline κ = [Y]). The search space, metric, optimizer, and compiled prompt are archived at [repo DOI]. We report the held-out κ rather than the development κ because a prompt fitted to a metric can overfit."
+
+**Caveat — a compiled prompt is a fitted instrument, not a string.** Because the search optimizes against data, it can overfit; the held-out test split is mandatory and must not be touched during compilation. Archive the *compiled* prompt verbatim (DSPy: `program.save(...)`; TextGrad: the final `instruction.value`) — it, not your source prompt, is what ran. Once a prompt is chosen by a scored search on data, the folklore era is over: you report the *search space*, the *metric*, and the *held-out score*, exactly as you would for any other model-selection step in a paper.
+
+---
+
 ### Step 5 — RAG / Document QA with FAISS
 
 For large document collections where you need to answer specific questions or retrieve relevant passages:
@@ -254,6 +371,12 @@ GROUNDED THEORY (if used)
 [ ] All 3 cycles documented (inductive → interpretive → deductive)
 [ ] Category definitions reproduced verbatim
 [ ] κ from Cycle 3 deductive coding ≥ 0.70
+
+PROMPT OPTIMIZATION (if used — APE / OPRO / DSPy / TextGrad)
+[ ] Search space (instructions vs. demonstrations), metric (κ gate), and optimizer named
+[ ] Train / dev / held-out split documented; reported κ is the HELD-OUT score, not the dev score
+[ ] Compiled prompt archived verbatim (it is a fitted instrument, not a string)
+[ ] Hand-written zero-shot baseline κ reported for comparison
 
 RAG / DOCUMENT QA (if used)
 [ ] Chunk size and embedding model documented
