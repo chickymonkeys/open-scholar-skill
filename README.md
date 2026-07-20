@@ -52,6 +52,18 @@ The 34 modular skills provided here are the same building blocks. You are encour
 
 Not every project needs every skill. Skip what doesn't apply, repeat what does (`/scholar-write` → `/scholar-verify` → revise → repeat). Running each skill individually keeps you in the loop at every stage — reviewing outputs, making decisions, and steering the research direction. This is how we believe AI tools should be used in scholarship.
 
+## Support This Project
+
+Open Scholar Skill is free for academic and non-commercial research use, and is maintained in the developer's spare time. If you find it useful and would like to help sustain ongoing maintenance and development, a small personal donation is warmly appreciated. It is entirely optional and voluntary — every part of the suite remains free to use, with or without donating.
+
+<p align="center">
+  <img src="assets/wechat.jpg" alt="WeChat Pay donation QR code" width="280">
+  <br>
+  <em>WeChat Pay — scan to support the developer</em>
+</p>
+
+Thank you for helping keep the project alive. 🙏
+
 ## Data Safety (v5.9.0)
 
 The "keep researchers in the loop" philosophy applies to data access just as much as to paper drafting. Reading a data file through Claude Code transmits its contents to the Anthropic API — silent for a public CSV, potentially a data-use-agreement violation for NHANES, PSID, NLSY, Census RDC, HIPAA-covered records, or IRB-protected interviews. v5.9.0 addresses this with a three-layer defense that requires an explicit researcher decision on every data file.
@@ -569,15 +581,3 @@ BibTeX:
 ```
 
 A citation helps sustain development of the skill suite and signals to journals and reviewers that AI-assisted workflows used here have a documented methodological basis.
-
-## Support This Project
-
-Open Scholar Skill is free for academic and non-commercial research use, and is maintained in the developer's spare time. If you find it useful and would like to help sustain ongoing maintenance and development, a small personal donation is warmly appreciated. It is entirely optional and voluntary — every part of the suite remains free to use, with or without donating.
-
-<p align="center">
-  <img src="assets/wechat.jpg" alt="WeChat Pay donation QR code" width="280">
-  <br>
-  <em>WeChat Pay — scan to support the developer</em>
-</p>
-
-Thank you for helping keep the project alive. 🙏
