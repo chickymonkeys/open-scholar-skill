@@ -569,3 +569,15 @@ BibTeX:
 ```
 
 A citation helps sustain development of the skill suite and signals to journals and reviewers that AI-assisted workflows used here have a documented methodological basis.
+
+## Support This Project
+
+Open Scholar Skill is free for academic and non-commercial research use, and is maintained in the developer's spare time. If you find it useful and would like to help sustain ongoing maintenance and development, a small personal donation is warmly appreciated. It is entirely optional and voluntary — every part of the suite remains free to use, with or without donating.
+
+<p align="center">
+  <img src="assets/wechat.jpg" alt="WeChat Pay donation QR code" width="280">
+  <br>
+  <em>WeChat Pay — scan to support the developer</em>
+</p>
+
+Thank you for helping keep the project alive. 🙏
