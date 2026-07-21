@@ -683,4 +683,4 @@ bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-claims.sh" "[draft_path]"
 
 See [references/paper-structure.md](references/paper-structure.md) for journal-specific structural templates and paragraph-level writing templates.
 See [references/academic-writing.md](references/academic-writing.md) for writing style guides, revision guidance, and transition library.
-See [assets/index.md](assets/index.md) for the catalog of example articles (user1-articles + top-journal-articles).
+See [assets/index.md](assets/index.md) for the catalog of example articles (example-articles + top-journal-articles).

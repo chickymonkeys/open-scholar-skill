@@ -26,7 +26,7 @@ SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
 cat "$SKILL_DIR/scholar-write/assets/article-knowledge-base.md"
 ```
 
-This file contains pre-extracted structured annotations for ~127 papers (32 user1-articles + 8 user2-articles + 87 top-journal exemplars). For each fully-annotated paper it provides:
+This file contains pre-extracted structured annotations for the papers you have added to `assets/` (your own work in `example-articles/`, plus `top-journal-articles/`). It ships as an empty template — see the README section "Setting Up the Article Library" for the one-prompt indexing step that populates it. For each fully-annotated paper it provides:
 - **Opening line** (verbatim first sentence of the introduction)
 - **Gap sentence** (verbatim gap statement)
 - **Contribution claim** (verbatim contribution statement)
@@ -36,8 +36,8 @@ This file contains pre-extracted structured annotations for ~127 papers (32 user
 - **Best for** guidance
 
 **Select from the knowledge base**:
-- Choose **1–2 user1-articles** whose domain/method most closely matches → defines the author's voice
-- Choose **1–2 user2-articles** if the paper involves applied linguistics, sociolinguistics, language ideology, study abroad, heritage language, intercultural communication, conversation analysis, or discourse analysis → defines discipline-specific voice and framing
+- Choose **1–2 example-articles** whose domain/method most closely matches → defines the author's voice
+- If the paper sits in a distinct subfield (applied linguistics, sociolinguistics, language ideology, study abroad, heritage language, intercultural communication, conversation analysis, discourse analysis), prefer example-articles from that subfield → defines discipline-specific voice and framing
 - Choose **1–2 top-journal articles** that match the target journal → defines required structural depth and citation density
 
 ### Tier 2: Read the Section Snippets Library (Fast — Do for Targeted Sections)
@@ -66,11 +66,8 @@ If a specific paper's full text is needed beyond what the knowledge base provide
 ```bash
 ASSETS="$SKILL_DIR/scholar-write/assets"
 
-# Read a user1-article (first 300 lines = abstract + intro + early theory + methods)
-pdftotext "$ASSETS/user1-articles/[FILENAME].pdf" - | head -300
-
-# Read a user2-article (applied linguistics, sociolinguistics, study abroad, discourse analysis)
-pdftotext "$ASSETS/user2-articles/[FILENAME].pdf" - | head -300
+# Read one of your own articles (first 300 lines = abstract + intro + early theory + methods)
+pdftotext "$ASSETS/example-articles/[FILENAME].pdf" - | head -300
 
 # Read a top-journal article
 pdftotext "$ASSETS/top-journal-articles/[FILENAME].pdf" - | head -300
