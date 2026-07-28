@@ -16,14 +16,14 @@ Skills and agents live in the `.claude/` directory:
 ```
 open-scholar-skill/
 ├── .claude/
-│   ├── skills/           ← 33 skills (scholar-*) + 1 utility (sync-docs)
+│   ├── skills/           ← 34 skills (scholar-*) + 1 utility (sync-docs)
 │   ├── agents/           ← 9 reviewer agents (peer-reviewer-*) + 4 verification agents (verify-*) + 6 code-review agents (review-code-*)
 │   └── settings.local.json
 ├── README.md
 └── USAGE.md
 ```
 
-All 33 skills are available in any Claude Code session via `/skill-name` when working in this project directory.
+All 34 skills are available in any Claude Code session via `/skill-name` when working in this project directory.
 
 ---
 
@@ -59,6 +59,7 @@ The text after the skill name is passed directly as context. The more specific t
 | `/scholar-eda` | Before modeling | `pre-analysis for panel dataset` |
 | `/scholar-analyze` | Run analyses, produce tables/figures, write results (18 model types, gt + Stata output) | `data.csv, OLS of earnings on education by race for Demography` |
 | `/scholar-compute` | NLP / ML / networks / life2vec (11 modules) | `STM topic model on news corpus` or `life2vec on PSID panel` or `dml effect of X on Y` |
+| `/scholar-annotate` | Turn text into validated structured variables with LLMs at scale — **blocked until Cohen κ ≥ 0.70 vs gold** | `code framing in 2M news headlines` |
 | `/scholar-simulate` | LLM social simulation (silicon sampling, generative ABM, experiments) — **must validate against human data before any publishable claim** | `silicon survey of partisan affect, then validate against ANES` |
 | `/scholar-write` | Drafting sections | `introduction on segregation and health for ASR` |
 | `/scholar-citation` | Citations and references | `insert ASA citations and build reference list` |

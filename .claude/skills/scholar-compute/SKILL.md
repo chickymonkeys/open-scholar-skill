@@ -643,7 +643,7 @@ For File 2, change the BASE to:
 |--------|--------------|-------|
 | [STM]  | N topics (K); top topic label | [X]; "[label]" |
 | [BERT] | Test F1 (macro); AUC-ROC | [X]; [X] |
-| [conText] | Normed β for [covariate] | [X] (95% CI [lo, hi]) |
+| [conText] | Debiased normed coef. for [covariate] (`normed.estimate.deflated`) | [X] (95% CI [lo, hi]; perm. p=[p]) |
 | [LLM] | κ vs. human (N=[X]) | [X] |
 | [ERGM] | Homophily coef (nodematch) | [β] (SE=[SE]) |
 | [REM]  | Inertia coef | [β] (SE=[SE]) |
@@ -738,7 +738,7 @@ nuisance model specifications; cross-fitting folds.]
 the method:
 - STM: topic prevalence by covariate (effect = [X], 95% CI = [[lo],[hi]]), reference Figure X
 - BERT/CV: F1 (macro) = [X], AUC = [X]; highest-importance feature [name] (SHAP = [X])
-- conText: normed β for [party/group] = [X] (95% CI = [[lo],[hi]]), NNS comparison in Figure X
+- conText: debiased normed coefficient for [party/group] = [X] (95% CI = [[lo],[hi]], permutation p = [p]), NNS comparison in Figure X — describe inference as jackknife + permutation, never as bootstrap
 - ERGM: log-odds for nodematch([race]) = [β] (SE = [SE]); GOF confirmed
 - REM: inertia coef = [β] (SE = [SE]); LRT χ² = [X], df = [X], p = [p]
 - DML: ATE = [X], 95% CI = [[lo],[hi]]; nuisance model AUC = [X]

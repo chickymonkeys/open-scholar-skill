@@ -252,22 +252,40 @@ def framaxis_score(word, positive_pole, negative_pole, model):
 
 ## Embedding Regression (conText) — Full Reference Workflow
 
-Rodriguez, Spirling & Stewart (2022, APSR). Tests how word meaning varies across document-level covariates using "a la carte" embeddings (Khodak et al. 2018) + OLS regression on the resulting dense vectors. Inference via bootstrap / permutation.
+Rodriguez, Spirling & Stewart (2022, APSR). Tests how word meaning varies across document-level covariates using "a la carte" embeddings (Khodak et al. 2018) + OLS regression on the resulting dense vectors. Inference via jackknife standard errors and permutation tests.
+
+**API version note.** This workflow targets **conText ≥ 3.0.0** (CRAN 3.0.1, published 2026-04-12). conText 1.x accepted `bootstrap=` / `num_bootstraps=` and exposed an `@normed_betas` slot; **both were removed in 3.x**. A 1.x-era call fails immediately with `unused arguments (bootstrap = TRUE, num_bootstraps = 200)`.
 
 ### Installation and Required Objects
 
 ```r
 install.packages("conText")
+
+# Preflight — there is no non-conText fallback in this workflow. Fail here rather
+# than part-way through the module.
+if (!requireNamespace("conText", quietly = TRUE))
+  stop("conText not installed — run install.packages('conText')")
+if (utils::packageVersion("conText") < "3.0.0")
+  stop("conText >= 3.0.0 required; this script uses the 3.x API")
+
 library(conText); library(quanteda); library(dplyr)
 
 # Three required objects:
-# 1. A quanteda corpus with docvars (covariates on each document)
+# 1. A quanteda TOKENS object with docvars (covariates on each document).
+#    Note: conText() takes tokens, not a corpus — see Step 9.
 # 2. Pre-trained GloVe embeddings — bundled: cr_glove_subset
 #    For your own corpus: download GloVe from https://nlp.stanford.edu/projects/glove/
 #    and load with: glove <- as.matrix(read.table("glove.6B.300d.txt"))
-# 3. Transformation matrix — bundled: cr_transform
-#    (cr_transform is fit on Congressional Record; re-fit for other domains
-#     using khodakA estimation on your corpus if needed)
+# 3. Transformation matrix — bundled: cr_transform, fit on the U.S. Congressional
+#    Record. For ANY other domain, fit your own — otherwise every context embedding
+#    is silently mis-weighted (no error is raised):
+#
+#      toks_fcm <- fcm(toks_clean, context = "window", window = 6,
+#                      count = "weighted", weights = 1/(1:6), tri = FALSE)
+#      local_transform <- compute_transform(x = toks_fcm,
+#                                           pre_trained = your_glove,
+#                                           weighting = "log")
+#      # weighting: "log" for small corpora, a numeric threshold for large ones
 ```
 
 ### Step 1 — Prepare Corpus
@@ -379,27 +397,46 @@ ncs_results <- ncs(x=target_wv_party,
 
 ```r
 # OLS regression: context embeddings ~ covariates
-# bootstrap=TRUE: confidence intervals via bootstrapped samples
-# permute=TRUE:   p-values via permutation test of the covariate
+# jackknife=TRUE: leave-one-out std. errors + confidence intervals
+# permute=TRUE:   empirical p-values via permutation test of the covariate
+#
+# THREE contracts verified against conText 3.0.1 source:
+#  (a) QUOTE the LHS when the target is a glob or a phrase: "immigr*" ~ party + year.
+#      An unquoted glob is not a formula in R — `immigr* ~ party + year` parses as a
+#      multiplication call and errors with "object 'immigr' not found".
+#      conText reads the target via as.character(formula[[2]]).
+#  (b) `data` must be the cleaned TOKENS object (toks_clean from Step 1) — NOT the
+#      corpus, and NOT the target_toks from Step 2. conText calls tokens_context()
+#      internally. A corpus stops with "data must be of class tokens".
+#  (c) RHS covariates must be docvars present in `data`.
 model_ctx <- conText(
-  formula          = immigr* ~ party + year,
-  data             = corpus_obj,
+  formula          = "immigr*" ~ party + year,
+  data             = toks_clean,
   pre_trained      = cr_glove_subset,
   transform        = TRUE,
   transform_matrix = cr_transform,
-  bootstrap        = TRUE,
-  num_bootstraps   = 200,
+  jackknife        = TRUE,
+  confidence_level = 0.95,
   permute          = TRUE,
   num_permutations = 200,
   window           = 6L,
   valuetype        = "glob",
+  case_insensitive = TRUE,
   verbose          = FALSE
 )
 
-# normed_betas: norm of the regression coefficient vector per covariate
-# Larger norm = greater semantic shift attributable to that covariate
-# Columns: normed_beta, lower_ci, upper_ci, p_value
-print(model_ctx@normed_betas)
+# @normed_coefficients: norm of the regression coefficient vector per covariate.
+# (The 1.x slot @normed_betas no longer exists.)
+# Larger norm = greater semantic shift attributable to that covariate.
+#   always present: coefficient, normed.estimate.orig, normed.estimate.deflated,
+#                   normed.estimate.beta.error.null, n, n_obs, covariate_mean
+#   jackknife=TRUE adds: std.error, lower.ci, upper.ci
+#   permute=TRUE   adds: p.value
+# The CI columns exist ONLY under jackknife = TRUE — the Step 10 figure below
+# depends on them.
+# Report normed.estimate.deflated — the debiased squared norm. The .orig column is
+# upward-biased because estimation error inflates the norm.
+print(model_ctx@normed_coefficients)
 
 # Save
 saveRDS(model_ctx, "${OUTPUT_ROOT}/models/context-embedding-model.rds")
@@ -427,12 +464,15 @@ p_nns <- ggplot(nns_df, aes(x=reorder(word,sim), y=sim, fill=group)) +
 ggsave("${OUTPUT_ROOT}/figures/fig-nns-party.pdf", p_nns,
        device=cairo_pdf, width=8, height=5)
 
-# Normed betas plot
-betas_df <- as.data.frame(model_ctx@normed_betas)
-betas_df$covariate <- rownames(betas_df)
+# Normed coefficients plot
+# Column names come straight from @normed_coefficients — note the DOTS, not
+# underscores (normed.estimate.deflated, lower.ci, upper.ci), and that the
+# coefficient name is a column, not a rowname.
+betas_df <- as.data.frame(model_ctx@normed_coefficients)
+betas_df$covariate <- betas_df$coefficient
 
-p_beta <- ggplot(betas_df, aes(x=covariate, y=normed_beta,
-                               ymin=lower_ci, ymax=upper_ci)) +
+p_beta <- ggplot(betas_df, aes(x=covariate, y=normed.estimate.deflated,
+                               ymin=lower.ci, ymax=upper.ci)) +
   geom_point(size=3) +
   geom_errorbar(width=0.2) +
   geom_hline(yintercept=0, linetype="dashed", color="gray50") +
@@ -448,12 +488,15 @@ ggsave("${OUTPUT_ROOT}/figures/fig-context-regression.pdf", p_beta,
 - Target word(s) and glob pattern
 - Context window size (default: 6)
 - Pre-trained embeddings source (GloVe version, dimensions)
-- Whether domain-specific transformation matrix was used
-- Number of bootstrap / permutation iterations
+- Which transformation matrix was used **and what corpus it was fit on** (the bundled `cr_transform` = U.S. Congressional Record; say so if you used it on non-Congressional text, or report your own `compute_transform()` fit)
+- Inference: jackknife SEs + number of permutations
 - N contexts per group
+- `conText` package version (the 1.x and 3.x APIs differ)
 
 **Reporting template:**
-> "We apply embedding regression (Rodriguez, Spirling, and Stewart 2022) using the `conText` R package to test whether the semantic meaning of *[target word]* varies by [covariate]. For each instance of *[target word]* in the corpus, we extract a ±6 token context window and compute an 'a la carte' context embedding using 300-dimensional GloVe vectors (Pennington et al. 2014) and the Khodak transformation matrix. We regress context embeddings on [covariates] via OLS; statistical inference uses [200] bootstrap iterations and [200] permutation tests. The normed regression coefficient for [party] is [X] (95% CI = [[lo], [hi]], p = [p]), indicating that [interpretation of semantic shift]."
+> "We apply embedding regression (Rodriguez, Spirling, and Stewart 2022) using the `conText` R package [version] to test whether the semantic meaning of *[target word]* varies by [covariate]. For each instance of *[target word]* in the corpus, we extract a ±6 token context window and compute an 'a la carte' context embedding using 300-dimensional GloVe vectors (Pennington et al. 2014) and a Khodak transformation matrix [fit on our own corpus / the bundled Congressional Record matrix]. We regress context embeddings on [covariates] via OLS; standard errors come from jackknife resampling and empirical *p*-values from [200] permutations. The debiased normed regression coefficient for [party] is [X] (95% CI = [[lo], [hi]], *p* = [p]), indicating that [interpretation of semantic shift]."
+
+Do not write "bootstrap" in the Methods prose — conText 3.x does not bootstrap. Reporting bootstrapped inference for a jackknife/permutation estimator misdescribes the method.
 
 ---
 

@@ -19,52 +19,102 @@ Before proceeding, classify the computational claim:
 
 **Purpose**: Estimate how a target word (e.g., *immigrant*) is used differently across social groups (Democrat vs. Republican), controlling for other textual covariates.
 
+**API version note.** Targets **conText ≥ 3.0.0** (CRAN 3.0.1). The 1.x arguments `bootstrap=` / `num_bootstraps=` and the `@normed_betas` slot were removed in 3.x.
+
+conText registers **no `summary()` and no `plot()` method**, and neither call errors — which is the trap. `summary(model)` falls through to the default method and returns `Length 600 / Class conText / Mode S4`, not a coefficient table; `plot(model)` returns `NULL`. Read `@normed_coefficients` and build figures yourself.
+
 ```r
 # install.packages("conText")
+if (!requireNamespace("conText", quietly = TRUE))
+  stop("conText not installed — run install.packages('conText')")
+if (utils::packageVersion("conText") < "3.0.0")
+  stop("conText >= 3.0.0 required; this script uses the 3.x API")
 library(conText); library(quanteda); library(ggplot2)
 
-data(cr_glove_subset)  # pre-trained GloVe embeddings (Congress)
-data(cr_corpus)
-data(cr_party)
+# Bundled datasets are cr_sample_corpus, cr_glove_subset, cr_transform.
+# (There is no cr_corpus and no cr_party — party is a DOCVAR on cr_sample_corpus.)
+data(cr_sample_corpus)  # demo corpus; docvars include party, gender
+data(cr_glove_subset)   # pre-trained GloVe embeddings (Congress)
+data(cr_transform)      # transformation matrix fit on the Congressional Record
+
+# ⚠ DOMAIN MATCH — critical for sociolinguistics. cr_transform is fit on U.S.
+# congressional speech. Applied to interview transcripts, community corpora, or
+# non-English data it silently mis-weights every context embedding — no error is
+# raised. For your own corpus, fit your own matrix:
+#   toks_fcm  <- fcm(toks, context = "window", window = 6,
+#                    count = "weighted", weights = 1/(1:6), tri = FALSE)
+#   local_tr  <- compute_transform(x = toks_fcm, pre_trained = your_glove,
+#                                  weighting = "log")   # "log" for small corpora
+# and report which matrix you used, and what it was fit on, in Methods.
 
 # Step 1: Tokenize
-toks <- tokens(cr_corpus, remove_punct = TRUE) |> tokens_tolower()
+toks <- tokens(cr_sample_corpus, remove_punct = TRUE) |> tokens_tolower()
 
 # Step 2: Extract tokens-in-context around target (±6 token window)
 toks_ctx <- tokens_context(toks, pattern = "immigr*", window = 6L)
 
 # Step 3: Build document-embedding matrix (DEM)
-dem_immigr <- dem(x = toks_ctx, pre_trained = cr_glove_subset,
-                  transform = TRUE, verbose = FALSE)
+# dem() takes a DFM (it matches colnames against the embedding vocabulary), and
+# transform = TRUE REQUIRES transform_matrix — omitting it stops the run.
+dem_immigr <- dem(x = dfm(toks_ctx), pre_trained = cr_glove_subset,
+                  transform = TRUE, transform_matrix = cr_transform,
+                  verbose = FALSE)
 
-# Step 4: Group-level ALC embeddings
-dem_party <- dem_group(dem_immigr, groups = cr_party)
+# Step 4: Group-level ALC embeddings (group by a docvar carried through tokens_context)
+dem_party <- dem_group(dem_immigr, groups = dem_immigr@docvars$party)
 
 # Step 5: Nearest semantic neighbors per group
 nns_party <- nns(dem_party, pre_trained = cr_glove_subset,
-                 N = 10, as_list = TRUE)
+                 N = 10, candidates = dem_party@features, as_list = TRUE)
 print(nns_party)  # what concepts are closest to "immigr*" for D vs. R?
 
-# Step 6: Cosine similarity between groups
-cos_sim(dem_party["D", ], dem_party["R", ])
+# Step 6: Cosine similarity BETWEEN the two group embeddings.
+# cos_sim()'s 2nd argument is `pre_trained` — it compares an embedding to vocabulary
+# FEATURES, not to another group embedding. For group-vs-group, take the cosine directly:
+v_D <- as.numeric(dem_party["D", ]); v_R <- as.numeric(dem_party["R", ])
+sum(v_D * v_R) / (sqrt(sum(v_D^2)) * sqrt(sum(v_R^2)))
+
+# cos_sim IS the right tool for group-vs-concept comparisons:
+cos_sim(dem_party, pre_trained = cr_glove_subset,
+        features = c("refugee", "worker", "illegal"), as_list = FALSE)
 
 # Step 7: NNS ratio (D/R — which words are more D-like?)
+# nns_ratio takes exactly 2 rows and has NO `denominator` argument — naming the
+# numerator implies the other group. Passing denominator= is an "unused argument" error.
 nns_ratio(x = dem_party, N = 10, pre_trained = cr_glove_subset,
-          numerator = "D", denominator = "R")
+          candidates = dem_party@features, numerator = "D")
 
-# Step 8: conText regression (ALC embedding ~ group + year)
-model_ctx <- conText(formula  = immigr ~ party + year,
-                     data     = cr_corpus,
+# Step 8: conText regression (ALC embedding ~ group + covariates)
+# `data` must be a TOKENS object (conText calls tokens_context() internally); a
+# corpus stops with "data must be of class tokens". Quote a glob/phrase LHS —
+# an unquoted `immigr* ~ ...` is not a formula in R.
+model_ctx <- conText(formula = "immigr*" ~ party + gender,
+                     data    = toks,
                      pre_trained = cr_glove_subset,
-                     transform   = TRUE, verbose = FALSE,
-                     permute     = TRUE, num_permutations = 100)
-summary(model_ctx)  # coefficients = ALC embeddings; permutation p-values
+                     transform   = TRUE, transform_matrix = cr_transform,
+                     jackknife   = TRUE, confidence_level = 0.95,
+                     permute     = TRUE, num_permutations = 100,
+                     window = 6L, valuetype = "glob", verbose = FALSE)
 
-# Step 9: Visualize
-plot(model_ctx) + theme_Publication()
-ggsave("${OUTPUT_ROOT}/ling/figures/fig-context-embedding.pdf",
+# No usable summary() method — the coefficient table is in @normed_coefficients:
+#   always present: coefficient, normed.estimate.orig, normed.estimate.deflated,
+#                   normed.estimate.beta.error.null, n, n_obs, covariate_mean
+#   jackknife=TRUE adds: std.error, lower.ci, upper.ci   <- the figure below needs these
+#   permute=TRUE   adds: p.value
+# Report normed.estimate.deflated (debiased).
+nc <- model_ctx@normed_coefficients
+print(nc)
+
+# Step 9: Visualize — no plot() method exists either; build the figure explicitly.
+p_ctx <- ggplot(nc, aes(x = coefficient, y = normed.estimate.deflated,
+                        ymin = lower.ci, ymax = upper.ci)) +
+  geom_point(size = 3) + geom_errorbar(width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "gray50") +
+  labs(x = NULL, y = "Debiased normed coefficient (95% CI)") +
+  theme_Publication()
+ggsave("${OUTPUT_ROOT}/ling/figures/fig-context-embedding.pdf", p_ctx,
        device = cairo_pdf, width = 7, height = 5)
-ggsave("${OUTPUT_ROOT}/ling/figures/fig-context-embedding.png", dpi = 300,
+ggsave("${OUTPUT_ROOT}/ling/figures/fig-context-embedding.png", p_ctx, dpi = 300,
        width = 7, height = 5)
 
 # Save model and nearest-neighbor tables
@@ -74,7 +124,9 @@ write.csv(nns_party$R, "${OUTPUT_ROOT}/ling/tables/nns-republican.csv")
 ```
 
 **Reporting template**:
-> "We used the conText framework (Rodriguez et al. 2023) with [GloVe 300d / cr_glove] embeddings to estimate group differences in the semantic context of *[target term]*. For each target instance, we extracted a ±[window]-token context window and constructed group-level ALC embeddings. [Group A] used *[target term]* in contexts most similar to [neighbor 1, 2], while [Group B] used it closer to [neighbor 3, 4] (cosine similarity = [X]). The conText regression coefficient for [Group B] vs. [Group A] was significant (permutation p = [p], N = [N] contexts, n_permutations = 100)."
+> "We used the conText framework (Rodriguez et al. 2023), implemented in `conText` [version], with [GloVe 300d / embeddings trained on our own corpus] and a Khodak transformation matrix [fit on our corpus via `compute_transform()` / the bundled Congressional Record matrix], to estimate group differences in the semantic context of *[target term]*. For each target instance, we extracted a ±[window]-token context window and constructed group-level ALC embeddings. [Group A] used *[target term]* in contexts most similar to [neighbor 1, 2], while [Group B] used it closer to [neighbor 3, 4] (cosine similarity = [X]). The debiased normed regression coefficient for [Group B] vs. [Group A] was [X] (95% CI = [[lo], [hi]]; permutation *p* = [p], N = [N] contexts, n_permutations = 100)."
+
+Report the transformation matrix provenance explicitly — a reviewer in sociolinguistics will ask whether a Congressional-Record matrix was applied to community speech data. Describe inference as jackknife SEs + permutation *p*-values, not bootstrap.
 
 ---
 

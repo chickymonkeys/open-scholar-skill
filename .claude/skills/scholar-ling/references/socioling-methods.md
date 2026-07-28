@@ -435,24 +435,30 @@ write.csv(readabil_stats, "${OUTPUT_ROOT}/ling/tables/readability.csv")
 
 ## conText Quick Reference (R package)
 
+Signatures below are conText **3.x** (CRAN 3.0.1). Full workflow: `references/module-06-computational.md` Step 6b.
+
 | Function | Purpose |
 |---------|---------|
-| `tokens_context(toks, pattern, window)` | Extract ±window token contexts around target |
-| `dem(toks_ctx, pre_trained)` | Build document-embedding matrix (DEM) |
-| `dem_group(dem, groups)` | Average DEM within groups → group ALC embeddings |
-| `nns(dem_group, pre_trained, N)` | Nearest semantic neighbors for each group |
-| `cos_sim(vec_a, vec_b)` | Cosine similarity between two embedding vectors |
-| `nns_ratio(dem_group, numerator, denominator)` | Ratio of NNS scores: which words favor group A vs. B? |
-| `ncs(dem_group, contexts_search, pre_trained)` | Nearest context sentences |
-| `conText(formula, data, pre_trained)` | ALC regression: group/covariate → embedding space |
+| `tokens_context(x, pattern, window)` | Extract ±window token contexts around target; `x` must be tokens |
+| `dem(x, pre_trained, transform, transform_matrix)` | Build document-embedding matrix (DEM); `x` is a **dfm**, and `transform_matrix` is required when `transform = TRUE` |
+| `dem_group(x, groups)` | Average DEM within groups → group ALC embeddings |
+| `nns(x, N, candidates, pre_trained)` | Nearest semantic neighbors for each group |
+| `cos_sim(x, pre_trained, features)` | Cosine similarity of embedding(s) to **vocabulary features** — not a two-vector helper; for group-vs-group compute the cosine directly |
+| `nns_ratio(x, N, numerator, candidates, pre_trained)` | Ratio of NNS scores; `x` must have exactly 2 rows. **No `denominator` argument** — naming the numerator implies the other group |
+| `ncs(x, contexts_dem, contexts, N)` | Nearest context sentences |
+| `conText(formula, data, pre_trained, transform_matrix, jackknife, permute)` | ALC regression. `data` must be **tokens**, not a corpus. Quote a glob/phrase LHS: `"immigr*" ~ party`. Results in `@normed_coefficients` (no `summary()`/`plot()` method exists) |
+| `compute_transform(x, pre_trained, weighting)` | Fit your own transformation matrix from an **fcm** — do this for any non-Congressional corpus |
 
 ```r
-# Minimal reproducible conText example
-library(conText)
-data(cr_glove_subset); data(cr_corpus); data(cr_party)
-toks     <- tokens(cr_corpus) |> tokens_tolower()
+# Minimal reproducible conText example (3.x API)
+library(conText); library(quanteda)
+# Bundled data: cr_sample_corpus, cr_glove_subset, cr_transform
+data(cr_sample_corpus); data(cr_glove_subset); data(cr_transform)
+toks     <- tokens(cr_sample_corpus) |> tokens_tolower()
 toks_ctx <- tokens_context(toks, pattern = "immigr*", window = 6L)
-dem_imm  <- dem(toks_ctx, pre_trained = cr_glove_subset, transform = TRUE)
-dem_grp  <- dem_group(dem_imm, groups = cr_party)
-nns(dem_grp, pre_trained = cr_glove_subset, N = 5, as_list = TRUE)
+dem_imm  <- dem(dfm(toks_ctx), pre_trained = cr_glove_subset,
+                transform = TRUE, transform_matrix = cr_transform)
+dem_grp  <- dem_group(dem_imm, groups = dem_imm@docvars$party)
+nns(dem_grp, pre_trained = cr_glove_subset, N = 5,
+    candidates = dem_grp@features, as_list = TRUE)
 ```
