@@ -114,6 +114,7 @@ When a user starts a new research project with `/scholar-init` (or `bash scripts
 │   ├── interim/             ← cleaned/subsetted (scripts write here)
 │   └── processed/           ← analytic datasets used by models
 ├── materials/               ← codebooks, questionnaires, protocols
+├── corpus/                  ← text corpora (linguistics / text-as-data); optional
 ├── output/
 │   └── <slug>/              ← scholar-init populates this
 └── logs/
@@ -124,8 +125,48 @@ The PreToolUse hook's path classifier is aligned with this layout:
 
 - `data/raw/*`, `data/interim/*`, `data/processed/*` → data extensions are inspected by `safety-scan.sh`; image extensions are **blocked** because grep can't inspect pixels.
 - `materials/*` → codebooks and protocols. Usually safe to `Read`, but still scanned.
+- `corpus/*`, `corpora/*` → gated exactly like `data/` (see §2b below).
 - `output/<slug>/figures/*`, `output/<slug>/tables/*` → analytical outputs, image extensions allowed.
 - Anywhere else → default pass-through for screenshots, icons, UI docs.
+
+### 2b. Text corpora — `corpus/` and the subdirectory convention
+
+Linguistics and text-as-data projects often keep a corpus outside `data/`. The
+guard supports this directly: **`corpus/` and `corpora/` are gated path segments**
+in `is_rawdata_path()`, so every file under them is treated as data *regardless of
+extension* — including extensionless files. `.json`, `.txt`, `.docx` and the
+linguistics formats (`.eaf`, `.TextGrid`, `.trs`, `.cha`) are all covered.
+
+Ingest a corpus so its files get a **reviewed** status rather than a live re-scan
+on every read:
+
+```bash
+scholar-init <slug> --corpus /path/to/corpus            # → <slug>/corpus/…
+scholar-init <slug> --corpus /path/to/a --corpus /path/to/b
+```
+
+**A corpus is not one kind of thing**, and the policy should differ:
+
+| Corpus content | Put it in | OVERRIDE |
+|---|---|---|
+| Public text (news, parliamentary records, Wikipedia, published works) | `corpus/<name>/` | allowed with rationale |
+| Participant speech (sociolinguistic interviews, classroom recordings, elicitation) | `corpus/transcripts/` or `corpus/interviews/` | **refused** (§4) |
+| Audio/video of any kind | anywhere under `corpus/` | **refused** — by extension |
+
+This works because the classifier matches on *path segments*, so the qualitative
+segments (`transcripts/`, `interviews/`, `field-notes/`, `participants/`,
+`subjects/`, `respondents/`) keep their strict treatment when nested inside
+`corpus/`. Verified behaviour:
+
+```
+corpus/news/article.txt        gated, OVERRIDE allowed
+corpus/transcripts/i01.txt     gated, OVERRIDE refused
+corpus/recordings/s1.wav       gated, OVERRIDE refused (extension rule)
+```
+
+**Naming matters — the match is an exact segment.** `mycorpus/`, `corpus-2024/`,
+`texts/`, `speeches/` and `tweets/` are **not** gated. Name the directory exactly
+`corpus/` or `corpora/`, or keep the material under `data/raw/`.
 
 ### The NEEDS_REVIEW status
 

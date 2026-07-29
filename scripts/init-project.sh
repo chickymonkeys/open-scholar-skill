@@ -13,6 +13,7 @@
 #   │   ├── interim/              ← empty, scripts write here
 #   │   └── processed/            ← empty, analytic datasets
 #   ├── materials/                ← codebooks, questionnaires, protocols
+#   ├── corpus/                   ← text corpora (only when --corpus is used)
 #   ├── output/                   ← analysis/writing skills populate this
 #   └── logs/
 #       └── init-report.md        ← permanent ingest record
@@ -24,6 +25,13 @@
 #   --dest <dir>        Parent directory (default: current directory)
 #   --link              Symlink raw files instead of copying (default: copy)
 #   --materials <path>  Treat this file/dir as materials/ not data/raw/.
+#                       May be given multiple times.
+#   --corpus <path>     Ingest into corpus/ instead of data/raw/ — for text
+#                       corpora (linguistics / text-as-data). Scanned and
+#                       recorded in safety-status.json exactly like raw data;
+#                       corpus/ is already a gated directory in the PreToolUse
+#                       guard. Nest sensitive subsets as corpus/transcripts/
+#                       or corpus/interviews/ to also forbid OVERRIDE.
 #                       May be given multiple times.
 #   --scaffold          Create the empty standard layout only (no input files
 #                       required). Use when the user wants to stand up the
@@ -45,7 +53,7 @@ SAFETY_SCAN="${SCRIPT_DIR}/gates/safety-scan.sh"
 
 # ─── Argument parsing ───────────────────────────────────────────────────
 usage() {
-  sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -55,6 +63,7 @@ FORCE=0
 SCAFFOLD=0
 SLUG=""
 MATERIALS_INPUTS=()
+CORPUS_INPUTS=()
 RAW_INPUTS=()
 
 # Helper: validate that a valued flag has a following argument before
@@ -84,6 +93,12 @@ while [ $# -gt 0 ]; do
         exit 1
       fi
       MATERIALS_INPUTS+=("$2"); shift 2 ;;
+    --corpus)
+      if [ $# -lt 2 ]; then
+        echo "error: --corpus requires a file or directory argument" >&2
+        exit 1
+      fi
+      CORPUS_INPUTS+=("$2"); shift 2 ;;
     --scaffold)   SCAFFOLD=1; shift ;;
     --force)      FORCE=1; shift ;;
     -h|--help)    usage 0 ;;
@@ -140,6 +155,7 @@ fi
 ALL_INPUTS=()
 [ ${#RAW_INPUTS[@]} -gt 0 ]       && ALL_INPUTS+=("${RAW_INPUTS[@]}")
 [ ${#MATERIALS_INPUTS[@]} -gt 0 ] && ALL_INPUTS+=("${MATERIALS_INPUTS[@]}")
+[ ${#CORPUS_INPUTS[@]} -gt 0 ]    && ALL_INPUTS+=("${CORPUS_INPUTS[@]}")
 # --scaffold stands up the empty layout with no inputs; the skill prompts the
 # user for data/materials afterwards and ingests them via `scholar-init add`.
 # Outside scaffold mode, at least one input is still required.
@@ -301,11 +317,28 @@ if [ ${#MATERIALS_INPUTS[@]} -gt 0 ]; then
   done
 fi
 
+# Text corpora (linguistics / text-as-data). corpus/ is created only when
+# --corpus is used, so non-corpus projects do not get an empty directory.
+# corpus/ is already one of the gated segments in is_rawdata_path(), so these
+# files are guard-protected the moment they land — ingesting them here is what
+# gives them a REVIEWED safety-status.json entry instead of a live re-scan on
+# every read.
+INGESTED_CORPUS=()
+if [ ${#CORPUS_INPUTS[@]} -gt 0 ]; then
+  mkdir -p "$PROJ_DIR/corpus"
+  for src in "${CORPUS_INPUTS[@]}"; do
+    while IFS= read -r -d '' f; do
+      INGESTED_CORPUS+=("$f")
+    done < <(ingest_one "$src" "$PROJ_DIR/corpus")
+  done
+fi
+
 RAW_COUNT=${#INGESTED_RAW[@]}
 MAT_COUNT=${#INGESTED_MATERIALS[@]}
+CORPUS_COUNT=${#INGESTED_CORPUS[@]}
 
 # ─── Scan each ingested file ────────────────────────────────────────────
-echo "▸ Running safety scan on $RAW_COUNT raw file(s) and $MAT_COUNT material(s)..."
+echo "▸ Running safety scan on $RAW_COUNT raw file(s), $MAT_COUNT material(s), and $CORPUS_COUNT corpus file(s)..."
 
 SCAN_RESULTS=()      # one line per file: "<level>|<path>"
 GREEN_COUNT=0
@@ -340,6 +373,9 @@ if [ ${#INGESTED_RAW[@]} -gt 0 ]; then
 fi
 if [ ${#INGESTED_MATERIALS[@]} -gt 0 ]; then
   for f in "${INGESTED_MATERIALS[@]}"; do scan_one "$f"; done
+fi
+if [ ${#INGESTED_CORPUS[@]} -gt 0 ]; then
+  for f in "${INGESTED_CORPUS[@]}"; do scan_one "$f"; done
 fi
 
 # ─── Build .claude/safety-status.json ───────────────────────────────────
@@ -765,7 +801,7 @@ echo "════════════════════════�
 echo "  Project initialized: $SLUG"
 echo "═══════════════════════════════════════════════════"
 echo "  Location:  $PROJ_DIR"
-echo "  Files:     $RAW_COUNT raw, $MAT_COUNT materials"
+echo "  Files:     $RAW_COUNT raw, $MAT_COUNT materials, $CORPUS_COUNT corpus"
 SCAN_SUMMARY="$GREEN_COUNT GREEN, $YELLOW_COUNT YELLOW, $RED_COUNT RED"
 if [ "$UNKNOWN_COUNT" -gt 0 ]; then
   SCAN_SUMMARY="$SCAN_SUMMARY, $UNKNOWN_COUNT UNKNOWN"

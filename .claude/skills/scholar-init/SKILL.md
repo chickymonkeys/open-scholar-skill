@@ -48,6 +48,7 @@ Parse `$ARGUMENTS` into:
 - `DEST` — parent directory (default: current working directory)
 - `LINK_MODE` — `--link` flag present? default: copy mode
 - `MATERIALS` — list of file paths tagged as `--materials` (codebooks, questionnaires)
+- `CORPUS` — list of file paths tagged as `--corpus` (text corpora for linguistics / text-as-data). Route a corpus here rather than into `data/raw/` when the user calls it a corpus; `corpus/` is a gated path segment in the PreToolUse guard, so it gets the same protection. Tell the user to nest participant speech under `corpus/transcripts/` or `corpus/interviews/`, which additionally forbids OVERRIDE. See `_shared/data-handling-policy.md` §2b.
 - `RAW_INPUTS` — everything else; treated as data/raw/ ingestion
 
 If the user gave you a topic description instead of a slug (e.g., `/scholar-init "immigrant wage penalty NHANES 2017"`), propose a slug by:
@@ -115,6 +116,10 @@ INIT_ARGS=()
 # MATERIALS_PATHS is a bash array of materials file paths (one element per input; may be empty)
 if [ "${#MATERIALS_PATHS[@]}" -gt 0 ]; then
   for _m in "${MATERIALS_PATHS[@]}"; do INIT_ARGS+=(--materials "$_m"); done
+fi
+# CORPUS_PATHS is a bash array of text-corpus paths (may be empty)
+if [ "${#CORPUS_PATHS[@]}" -gt 0 ]; then
+  for _c in "${CORPUS_PATHS[@]}"; do INIT_ARGS+=(--corpus "$_c"); done
 fi
 bash "$SCRIPT" "${INIT_ARGS[@]}" "$SLUG" "${RAW_INPUTS[@]}"
 ```
