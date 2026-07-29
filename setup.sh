@@ -403,6 +403,43 @@ echo "  → $skill_count skills, $agent_count agents available via ~/.claude/"
 echo "  → Pre-existing user skills in ~/.claude/skills/ are preserved."
 echo ""
 
+# ── 5a.7. Ensure runtime helper scripts are executable ───────────
+# Gate dispatch sites guard their helpers with `[ -x "$HELPER" ]`, and
+# scholar-auto-research's run_external_gate() refuses to run a gate that is not
+# executable. If a mode-stripping copy (some cloud-sync mounts, download-zip
+# installs) drops the +x bit, those checks silently skip or hard-RED at pipeline
+# runtime. git records mode 100755 so fresh *clones* are fine, but non-git
+# copies are not. Restore +x defensively here (idempotent). Globs (not `find`)
+# so paths containing spaces — e.g. "My Drive" — are handled correctly.
+echo "▸ Ensuring gate/phase helper scripts are executable..."
+# Only scripts with a `#!` shebang are meant to be EXECUTED; sourced helpers
+# (e.g. scholar-skill-bootstrap.sh, whose first line is a comment) are
+# intentionally non-executable (git mode 100644) and `. sourced` — chmod-ing
+# them +x would create a spurious mode change. Shebang presence is the
+# git-independent signal (this runs on non-git copies too).
+_chmod_fixed=0
+for _s in \
+  "$SCRIPT_DIR"/scripts/*.sh \
+  "$SCRIPT_DIR"/scripts/gates/*.sh \
+  "$SCRIPT_DIR"/scripts/gates/tests/*.sh \
+  "$SCRIPT_DIR"/scripts/phases/*.sh \
+  "$SCRIPT_DIR"/.claude/skills/*/scripts/*.sh \
+  "$SCRIPT_DIR"/.claude/skills/*/scripts/gates/*.sh ; do
+  [ -f "$_s" ] || continue          # literal (unmatched) glob -> skip
+  IFS= read -r _l < "$_s" || _l=""  # first line
+  case "$_l" in '#!'*) ;; *) continue ;; esac   # sourced helper (no shebang) — leave as-is
+  if [ ! -x "$_s" ]; then
+    chmod +x "$_s" 2>/dev/null && _chmod_fixed=$((_chmod_fixed + 1)) || true
+  fi
+done
+unset _s _l
+if [ "$_chmod_fixed" -gt 0 ]; then
+  echo "  → restored +x on $_chmod_fixed executable helper script(s) that had lost it"
+else
+  echo "  → all executable helper scripts already +x"
+fi
+unset _chmod_fixed
+
 # ── 5b. Install the PreToolUse data-safety hook ──────────────────
 # Docs have always promised that setup.sh registers the data-safety hook
 # in ~/.claude/settings.json. Earlier versions of setup.sh silently
