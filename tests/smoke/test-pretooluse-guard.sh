@@ -1299,6 +1299,83 @@ bgp_chk 0 "Bash git status"         "$(bgp_bash 'git status')"
 bgp_chk 0 "Bash empty command"      "$(bgp_bash '')"
 bgp_chk 0 "Bash ruby IO.foreach (documented bypass)" "$(bgp_bash "ruby -e 'IO.foreach(\"data/raw/x.csv\"){|l| puts l}'")"
 
+# ── Existence gate: path-shaped tokens that are NOT read targets ────────
+# The Bash gate classifies tokens by path SHAPE, with no notion of operand
+# position, so a regex handed to grep or a literal inside a loop used to be
+# reported as "the target" and blocked. A token that resolves to nothing on
+# disk cannot leak bytes, so it is no longer classified. These four ALLOW
+# cases are the real false positives observed in the field.
+#
+# NOTE the deliberate asymmetry with the BLOCK cases below: every path here is
+# NON-existent; every path there EXISTS. That is the whole distinction — do not
+# "fix" a failure in this block by making the guard ignore existing paths.
+bgp_chk 0 "Bash grep pattern names data path (nonexistent)" \
+  "$(bgp_bash 'grep -nE "nodata/raw|nodata/" script.sh')"
+bgp_chk 0 "Bash grep pattern with trailing-slash dirname (nonexistent)" \
+  "$(bgp_bash 'grep -n "nomaterials/" script.sh')"
+bgp_chk 0 "Bash loop literal that looks like a corpus path (nonexistent)" \
+  "$(bgp_bash 'for p in /nowhere/corpus/news/a.txt; do printf "%s\n" "$p"; done')"
+bgp_chk 0 "Bash sed on normal file + nonexistent sensitive literal" \
+  "$(bgp_bash "sed -n '1,5p' script.sh; echo /nowhere/data/raw/x.csv")"
+# An all-glob token — what a path PATTERN quoted in prose looks like (e.g. a
+# commit message or comment mentioning */raw/*). It has no literal directory
+# prefix, so it names no reachable file. Regression lock: an earlier draft
+# resolved such a token to "the nearest existing ancestor", which is the cwd,
+# and then reported the pattern itself as a sensitive target.
+bgp_chk 0 "Bash all-glob pattern token in prose" \
+  "$(bgp_bash "grep -n 'matched via \*/raw/\* here' script.sh")"
+
+# ── Existence gate must NOT become a bypass ─────────────────────────────
+# Each of these would pass if the implementation were subtly wrong, so they are
+# the regression locks for the two load-bearing rules:
+#   glob   -> must fall back to the longest non-glob directory prefix
+#   dir    -> existence must accept a DIRECTORY, not just a regular file
+mkdir -p "$BGP/corpus/transcripts"
+printf 'Speaker A: verbatim.\n' > "$BGP/corpus/transcripts/i01.txt"
+bgp_chk 2 "Bash cat glob over raw (glob-prefix rule)" \
+  "$(bgp_bash 'cat data/raw/*.csv')"
+bgp_chk 2 "Bash cat glob over corpus transcripts (glob-prefix rule)" \
+  "$(bgp_bash 'cat corpus/transcripts/*.txt')"
+bgp_chk 2 "Bash grep existing corpus transcript" \
+  "$(bgp_bash 'grep Speaker corpus/transcripts/i01.txt')"
+# Negative control: the gate is still armed for a plain existing sensitive file.
+bgp_chk 2 "Bash cat raw (negative control, still armed)" \
+  "$(bgp_bash 'cat data/raw/x.csv')"
+
+# Backslash-escaped quoting: a command assembled by a JSON/Codex payload carries
+# literal \" around the path, so the punctuation pass emits `\data/raw/x.csv\`.
+# The token must be de-escaped before the existence gate, or a real target is
+# skipped (the pre-existing substring classifier matched the mangled form, so
+# this only became reachable once existence gating landed).
+bgp_chk 2 "Bash py row-dump with backslash-escaped quotes" \
+  "$(jq -n --arg cwd "$BGP" --arg c 'python3 -c "import pandas as pd; print(pd.read_csv(\"data/raw/x.csv\").head())"' \
+     '{session_id:"t",transcript_path:"",cwd:$cwd,hook_event_name:"PreToolUse",tool_name:"Bash",tool_input:{command:$c}}')"
+
+# ── Variable-expansion: sensitive paths reached through a shell variable ──
+# Tokens containing '$' are unresolvable and are skipped by the classifier, so
+# a path built from a variable used to slip the gate entirely. The tokenizer
+# now additionally emits the expansion, resolved from assignments made in the
+# SAME command (shell state does not survive between Bash calls) plus a small
+# ambient-env allowlist.
+bgp_chk 2 "Bash var absolute path to corpus transcript" \
+  "$(bgp_bash "SP=$BGP; grep Speaker \"\$SP/corpus/transcripts/i01.txt\"")"
+bgp_chk 2 "Bash var holds parent dir, sensitive part literal" \
+  "$(bgp_bash 'D=data; cat "$D/raw/x.csv"')"
+bgp_chk 2 "Bash var braced form \${D}" \
+  "$(bgp_bash 'D=data/raw; cat "${D}/x.csv"')"
+bgp_chk 2 "Bash export-form assignment" \
+  "$(bgp_bash 'export D=data/raw; cat "$D/x.csv"')"
+bgp_chk 2 "Bash two-level var composition" \
+  "$(bgp_bash 'BASE=data; D="$BASE/raw"; cat "$D/x.csv"')"
+# Existence gating still applies to EXPANDED tokens — a variable that resolves
+# to a path which does not exist cannot leak anything.
+bgp_chk 0 "Bash var expands to nonexistent raw path" \
+  "$(bgp_bash 'D=nowhere/data/raw; cat "$D/x.csv"')"
+# Expansion must not over-block a legitimate non-sensitive destination.
+bgp_chk 0 "Bash var expands to output/tables" \
+  "$(bgp_bash 'D=output/tables; cat "$D/results.csv"')"
+
+
 # E4 sidecar tamper (Write)
 bgp_chk 2 "Write flip RED->CLEARED no provenance" \
   "$(bgp_write "$BGP/.claude/safety-status.json" "$(jq -n --arg r "$BGP/data/raw/x.csv" '{($r):"CLEARED"}')")"

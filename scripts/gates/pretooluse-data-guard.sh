@@ -641,6 +641,89 @@ PY
       fi
       ;;
   esac
+  # (3) VARIABLE-EXPANSION pass. Resolve $VAR / ${VAR} against assignments made
+  #     in THIS SAME command, plus a small allowlist of ambient environment
+  #     variables, and emit the fully-literal result. Purely ADDITIVE (same
+  #     contract as pass 1): it only ever adds concrete tokens, so it can never
+  #     turn a previously-blocked command into an allowed one.
+  #
+  #     WHY: the classifier skips any token containing '$' (it cannot resolve
+  #     one), so a sensitive path reached through a variable slipped the gate
+  #     entirely — `SP=/abs/proj; grep x "$SP/corpus/transcripts/i.txt"` was not
+  #     caught at all, and `D=data; cat "$D/raw/x.csv"` was missed because the
+  #     bare RHS `data` is not itself a sensitive path. (`D=data/raw;
+  #     cat "$D/x.csv"` was caught only by accident, via the RHS token.)
+  #
+  #     Why intra-command assignments are the right scope: Claude Code starts a
+  #     FRESH shell for every Bash call, so shell variables do not persist. A
+  #     variable that is neither assigned in the same command nor an exported
+  #     env var expands to empty at runtime and cannot address a real file.
+  #     Expanded tokens are concrete paths, so the existence gate still applies
+  #     to them — this closes the hole without reopening the false positives.
+  if command -v python3 >/dev/null 2>&1; then
+    GUARD_CWD="${CWD:-$PWD}" python3 - "$cmd" <<'PY' 2>/dev/null
+import os, re, shlex, sys
+
+cmd = sys.argv[1]
+env = {}
+for k in ("HOME", "TMPDIR", "PWD", "USER"):
+    v = os.environ.get(k)
+    if v:
+        env[k] = v
+gc = os.environ.get("GUARD_CWD")
+if gc:
+    env["PWD"] = gc
+
+# Assignments in this same command: VAR=value, export VAR=value; value may be
+# quoted. Later assignments win, matching shell evaluation order.
+assign = re.compile(
+    r'''(?:^|[\n;&|]|\bexport\s+)\s*([A-Za-z_][A-Za-z0-9_]*)='''
+    r'''("[^"]*"|'[^']*'|[^\s;&|]*)'''
+)
+for m in assign.finditer(cmd):
+    name, val = m.group(1), m.group(2)
+    if val[:1] in ('"', "'"):
+        val = val[1:-1]
+    if val:
+        env[name] = val
+
+if env:
+    ref = re.compile(r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)')
+
+    def sub(m):
+        return env.get(m.group(1) or m.group(2), m.group(0))
+
+    # Values may themselves reference variables (BASE=/p; D="$BASE/raw").
+    for _ in range(3):
+        changed = False
+        for k, v in list(env.items()):
+            nv = ref.sub(sub, v)
+            if nv != v:
+                env[k] = nv
+                changed = True
+        if not changed:
+            break
+
+    cands = []
+    try:
+        cands.extend(shlex.split(cmd, posix=True))
+    except Exception:
+        pass
+    cands.extend(re.split(r'''[\s"'`(){}\[\],;|&<>]+''', cmd))
+
+    seen = set()
+    for raw in cands:
+        if not raw or '$' not in raw:
+            continue
+        out = ref.sub(sub, raw)
+        # Only emit fully-resolved literals; a leftover '$' is unresolvable.
+        if not out or '$' in out or out in seen:
+            continue
+        seen.add(out)
+        print(out)
+PY
+  fi
+
   # Historical pass: shell punctuation -> space (KEEP '/' and '$'), then squeeze
   # whitespace runs into newlines so tokens split exactly as they did before.
   # printf '%s\n' (NOT '%s'): the output stream MUST end with a newline. The
@@ -649,6 +732,48 @@ PY
   # `cat data/raw/x.csv` is exactly the sensitive path (fail-open; fixed
   # 2026-07-04, caught by test-pretooluse-guard.sh Bash-channel cases).
   printf '%s\n' "$cmd" | tr '"'"'"'`(){}[],;|&<>=' '              ' | tr -s ' \t\n' '\n'
+}
+
+# Does a candidate token correspond to something that ACTUALLY EXISTS on disk
+# (file OR directory), or — for a glob token — to an existing directory prefix?
+#
+# WHY existence is consulted here, and ONLY here: this is a READ gate. A dump
+# verb aimed at a path that does not exist reveals zero bytes, so declining to
+# classify nonexistent tokens cannot open a data-leak bypass. What it DOES
+# remove is the large false-positive class where a token merely LOOKS like a
+# sensitive path without being a file operand at all — a regex handed to grep
+# (`grep -n "data/raw|materials/" script.sh`), a literal inside a for-loop, or
+# an example path in a heredoc. Those were blocked purely because the command
+# text contained a path-shaped string next to a dump verb.
+#
+# TWO RULES THAT MUST NOT BE RELAXED — each one is load-bearing:
+#
+#   1. file OR DIRECTORY, never file-only. `D=data/raw; cat "$D/x.csv"` is
+#      caught solely because the assignment-RHS token `data/raw` is an existing
+#      DIRECTORY — the `$D/x.csv` token is skipped for containing `$`. A
+#      file-only existence test would silently turn that regression-locked
+#      BLOCK (test-pretooluse-guard.sh "Bash var-assembled (S2)") into a real
+#      bypass.
+#
+#   2. glob tokens are REWRITTEN to their literal directory prefix by the
+#      caller before they reach here (see bash_first_sensitive_target), because
+#      a glob can only reach files underneath that prefix. `data/raw/*.csv`
+#      becomes `data/raw`, which exists and is sensitive. Do NOT reintroduce a
+#      glob fallback in this function: testing "some existing ancestor" instead
+#      of the literal prefix makes a token like `*/raw/*` resolve to the
+#      current directory, which trivially exists — and then the pattern itself
+#      gets reported as a sensitive target.
+#
+# Residual (documented, accepted): TOCTOU — a path that does not exist when the
+# hook runs but does by the time the command executes. Consistent with this
+# gate's stated scope as a cooperative-agent speed-bump, not a containment wall.
+_path_token_exists() {
+  local p head
+  for p in "$@"; do
+    [ -n "$p" ] || continue
+    [ -e "$p" ] && return 0
+  done
+  return 1
 }
 
 # Return the FIRST command path token that resolves to a sensitive target
@@ -664,6 +789,32 @@ bash_first_sensitive_target() {
       -*|'') continue ;;
       *'$'*) continue ;;                                # unexpanded var — cannot resolve
     esac
+    # De-escape backslash-quoted tokens BEFORE resolution. A command assembled
+    # with \" quoting — e.g. a Codex/JSON payload carrying
+    #   python3 -c "...read_csv(\"data/raw/x.csv\")..."
+    # — leaves stray backslashes glued to the path (`\data/raw/x.csv\`), because
+    # the punctuation pass strips quotes but not backslashes. The old substring
+    # classifier still matched that mangled form via `*/raw/*`, but such a path
+    # can never EXIST, so the existence gate would skip a genuine target.
+    # (Regression-locked by test-codex-data-guard.sh T2.) Backslashes in real
+    # Unix filenames are vanishingly rare; de-escaping is the accurate reading.
+    case "$tok" in *\\*) tok="${tok//\\/}" ;; esac
+    # Glob token -> classify its LITERAL DIRECTORY PREFIX, since that is the only
+    # place the glob can reach. `data/raw/*.csv` becomes `data/raw` (exists,
+    # sensitive -> blocked). A token with no literal prefix (`*/raw/*`, which is
+    # what a pattern written in prose looks like) reduces to nothing and is
+    # skipped — classifying it against "the nearest existing ancestor" would
+    # resolve to the cwd and report the pattern itself as the target.
+    case "$tok" in
+      *'*'*|*'?'*|*'['*)
+        tok="${tok%%\**}"; tok="${tok%%\?*}"; tok="${tok%%\[*}"
+        case "$tok" in
+          */*) tok="${tok%/*}" ;;
+          *)   continue ;;
+        esac
+        [ -n "$tok" ] || continue
+        ;;
+    esac
     # Only worth resolving if it has a path separator OR a data extension.
     case "$tok" in
       */*) : ;;
@@ -673,6 +824,11 @@ bash_first_sensitive_target() {
     canon="$(canonicalize "$tok" 2>/dev/null || true)"
     [ -n "$canon" ] || canon="$tok"
     lex="$(lexical_abspath "$tok" 2>/dev/null || true)"
+    # Existence gate (see _path_token_exists): a token that resolves to nothing
+    # on disk cannot be a read target, so it is not classified. This is what
+    # keeps a grep PATTERN or a loop literal that merely looks like a sensitive
+    # path from being reported as the command's target.
+    _path_token_exists "$canon" "$lex" || continue
     lower="$(printf '%s' "$canon" | tr 'A-Z' 'a-z')"
     lowerlex="$(printf '%s' "$lex" | tr 'A-Z' 'a-z')"
     # Classify by BOTH the symlink-resolved and lexical in-project path — a
@@ -1057,7 +1213,8 @@ EOF
       cat >&2 <<EOF
 SAFETY GUARD: Bash blocked — command appears to read sensitive data into context.
 
-Target classified as sensitive (raw-data / qualitative / LOCAL_MODE-restricted):
+This token in the command matched a sensitive path (raw-data / qualitative /
+LOCAL_MODE-restricted) AND exists on disk:
     $_SENS
 
 The command uses a content-revealing mechanism (cat/head/tail/sed/awk/grep/
@@ -1069,6 +1226,12 @@ Do this instead:
     (nrow, names+classes, summary(), table() with n<10 suppressed) — see
     _shared/data-handling-policy.md §3a/§3b.
   - Counts: 'wc -l <file>'  or  'grep -c PATTERN <file>'.
+
+If that token is NOT a file you are reading — e.g. it is a regex handed to
+grep, or a literal inside a loop — then this is a false positive: the token is
+classified by path shape, not by its position in the command. Rewrite the
+pattern so it does not spell a real sensitive path (split it, drop the trailing
+slash, or match on a distinctive substring instead).
 
 NOTE: this Bash gate is a cooperative-agent SPEED-BUMP, not a containment wall.
 For a kernel-enforced boundary, enable the Lockdown safety level.
