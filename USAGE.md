@@ -64,6 +64,7 @@ The text after the skill name is passed directly as context. The more specific t
 | `/scholar-write` | Drafting sections | `introduction on segregation and health for ASR` |
 | `/scholar-citation` | Citations and references | `insert ASA citations and build reference list` |
 | `/scholar-knowledge` | 8-mode knowledge graph: ingest / search / relate / status / export / compile (Obsidian wiki) / ask (Q&A) / re-extract | `compile` to build wiki, then `ask what are the main theories of segregation?` |
+| `/scholar-rag` | Fully-local vector DB + GraphRAG over your whole reference library for literature review: extract → bge-m3 embeddings → LanceDB, local-LLM GraphRAG (entities/communities), exposed to Claude/Codex via an MCP server (`rag_search`). Self-contained; nothing leaves the machine. 6 modes: setup, ingest, query, mcp, graph, status | `ingest`, then `query how does residential segregation affect mobility` |
 | `/scholar-monitor` | Current-awareness feed: delta-based fetching from top journals (Crossref/ISSN) + arXiv, auto-ingests into knowledge graph, pushes digests to phone via ntfy.sh. Designed for `/loop` scheduling. | `arxiv-llm` or `preview` or `/loop 24h /scholar-monitor` |
 | `/scholar-journal` | Submission prep | `prepare manuscript for Demography` |
 | `/scholar-open` | Preregistration / data sharing | `preregistration for FE panel study` |
@@ -1058,7 +1059,7 @@ Config lives at `~/.claude/scholar-monitor/config.json` (`chmod 0600`). State at
 
 ## Zotero Integration
 
-Skills `/scholar-lit-review`, `/scholar-write`, `/scholar-citation`, and `/scholar-knowledge` all query your
+Skills `/scholar-lit-review`, `/scholar-write`, `/scholar-citation`, `/scholar-knowledge`, and `/scholar-rag` all query your
 Zotero library automatically — no API keys or running Zotero required.
 
 **Library location:**
@@ -1073,6 +1074,7 @@ Common locations: `~/Zotero`, `~/Library/CloudStorage/*/zotero`
 - `/scholar-lit-review` Step 0: keyword search of title + abstract before any web search; also supports author search, collection/folder search, and PDF reading for top results
 - `/scholar-write` Step 0: pulls relevant citations by topic keyword when drafting a section
 - `/scholar-citation` Step 1: retrieves full bibliographic metadata (author, year, title, journal, volume, issue, pages, DOI) for all cited sources; MODE 5 (VERIFY) uses Zotero as Tier 1 verification before CrossRef and WebSearch
+- `/scholar-rag` ingest: reads the whole library (`itemAttachments` → `storage/[KEY]/[file].pdf`), extracts full text, and builds a local **vector database + GraphRAG** over it — turning your Zotero PDFs into semantic search (dense + hybrid) exposed to Claude Code / Codex via MCP. Runs fully locally (bge-m3 + LanceDB + ollama); the store lives at `~/.claude/scholar-rag/` (`SCHOLAR_RAG_DIR`). See `/scholar-rag setup` then `/scholar-rag ingest`
 
 **Manual search** (if you want to query Zotero yourself):
 ```bash

@@ -172,6 +172,8 @@ Before searching the web, query your **local reference library** (Zotero, Mendel
 
 Before searching Zotero, check the user-scoped knowledge graph for pre-extracted intellectual content on this topic. This provides findings, mechanisms, and theories — richer than bibliographic metadata alone.
 
+> **Full-text semantic tier — `scholar-rag` (if built).** When the user has a `scholar-rag` index (`/scholar-rag status` shows `embedded > 0`), query it for *full-text passages* from their own library, not just metadata. Prefer the MCP tool `rag_search("<topic>", k=8, hybrid=true)` (available if the scholar-rag MCP server is registered); otherwise the CLI: `"$SCHOLAR_RAG_DIR/.venv/bin/python" <scholar-rag-assets>/query.py "<topic>" -k 8 --hybrid --json`. It returns cited passages with page numbers, complementing the knowledge graph (findings) and Zotero (metadata). Treat retrieved passages as **leads to verify**, not as citations themselves — every reference still passes the Tier 0–2 verification above.
+
 ```bash
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
 KG_REF="$SKILL_DIR/_shared/knowledge-graph-search.md"

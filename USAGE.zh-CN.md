@@ -63,6 +63,7 @@ open-scholar-skill/
 | `/scholar-write` | 起草章节 | `introduction on segregation and health for ASR` |
 | `/scholar-citation` | 引文与参考文献 | `insert ASA citations and build reference list` |
 | `/scholar-knowledge` | 8 模式知识图谱：ingest / search / relate / status / export / compile（Obsidian wiki）/ ask（问答）/ re-extract | `compile` 构建 wiki，然后 `ask what are the main theories of segregation?` |
+| `/scholar-rag` | 面向整个参考文献库的全本地向量数据库 + GraphRAG，用于文献综述：提取 → bge-m3 嵌入 → LanceDB，本地 LLM 的 GraphRAG（实体/社区），通过 MCP 服务器（`rag_search`）向 Claude/Codex 暴露。自包含；数据不出本机。6 种模式：setup、ingest、query、mcp、graph、status | `ingest`，然后 `query how does residential segregation affect mobility` |
 | `/scholar-monitor` | 前沿文献订阅：基于增量的顶刊（Crossref/ISSN）+ arXiv 抓取，自动写入知识图谱，经 ntfy.sh 推送摘要到手机。专为 `/loop` 定时调度设计。 | `arxiv-llm` 或 `preview` 或 `/loop 24h /scholar-monitor` |
 | `/scholar-journal` | 投稿准备 | `prepare manuscript for Demography` |
 | `/scholar-open` | 预注册 / 数据共享 | `preregistration for FE panel study` |

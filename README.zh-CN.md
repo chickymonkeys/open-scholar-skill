@@ -34,7 +34,7 @@ Open-scholar-skill 的定位是**辅助**研究者，而不是取代研究者。
 
 本版本**包含** `scholar-auto-research`——一条稳定、确定性的流水线，将各模块化技能从想法或数据一路串联到经过验证的稿件。但**这不是自主研究，我们也不认可将其当作自主研究来使用。** 它与上述编排器的差异体现在三个专为让你保持掌控而设计的方面：（1）强制的**人在回路模式**，在各阶段之间停下来等待你的明确批准（`set-mode human-in-loop`）；（2）每个阶段都有确定性、可审计的关卡——结果锁定、引文元数据核验、四智能体稿件验证，以及按目标期刊校准的质量评审——这些关卡是把需要检查的内容摆到你面前，而不是藏起来；（3）一条硬性规则：实质性的学术工作由专业技能（`scholar-write`、`scholar-citation`、`scholar-respond` 等）完成，任何辅助脚本都不会悄悄成为你的论证、文献综合或引文的作者。**研究问题、论证和每一处解释的作者始终是你。** 只有当你会独立核验它产出的每一项结果时，才可在自主模式下运行——这与上文[伦理使用](#学术研究中-ai-的伦理使用)第 2 条是同一标准。拿不准时，就逐个运行各技能，在每一步都保持人在回路。
 
-这里提供的 34 个模块化技能就是同一套积木。我们鼓励你按照适合自己研究流程的顺序串联技能、搭建自己的工作流。典型流水线如下：
+这里提供的 35 个模块化技能就是同一套积木。我们鼓励你按照适合自己研究流程的顺序串联技能、搭建自己的工作流。典型流水线如下：
 
 ```
 /scholar-init (set up project + data safety)
@@ -121,7 +121,7 @@ cd ~/research/nhanes-bmi
 
 > **商标声明：** 上文及本项目各处列出的期刊名称均为其各自出版方的商标，此处仅用于标识与格式化目的。本项目与任何期刊或出版方均无隶属或背书关系。
 
-## 技能总览 (33 个技能 + 1 个实用工具 = 共 34 个)
+## 技能总览 (34 个技能 + 1 个实用工具 = 共 35 个)
 
 ### 研究流程（编排器）
 
@@ -144,6 +144,7 @@ cd ~/research/nhanes-bmi
 | `scholar-citation` | `/scholar-citation` | 8 模式引文管理：INSERT、AUDIT、CONVERT-STYLE、FULL-REBUILD、VERIFY、EXPORT (.bib)、RETRACTION-CHECK、REPORTING-SUMMARY |
 | `scholar-code-review` | `/scholar-code-review` | 6 智能体系统化代码审查：正确性、稳健性、统计忠实度、可复现性、代码风格、数据处理 |
 | `scholar-knowledge` | `/scholar-knowledge` | 用户级、跨项目知识图谱（8 模式：INGEST、SEARCH、RELATE、STATUS、EXPORT、COMPILE wiki、ASK、RE-EXTRACT）——兼容 Obsidian 的 markdown wiki，附原始来源存档 |
+| `scholar-rag` | `/scholar-rag` | 面向整个参考文献库（Zotero 或 PDF 文件夹）的**全本地向量数据库 + GraphRAG**，用于文献综述。定位/开放获取抓取全文 PDF，提取文本（pdftotext/PyMuPDF/视觉 OCR），用 **bge-m3** 切块嵌入到 **LanceDB**，并叠加一层本地 LLM 的 **GraphRAG**（实体/关系抽取 + Leiden 社区 + 社区摘要，从 `scholar-knowledge` 播种）。通过 **MCP 服务器**（`rag_search`、`rag_get_document`、`rag_neighbors`、`rag_stats`）向 Claude Code + Codex 暴露语义检索。自包含（自带 venv）；数据不出本机。6 种模式：setup、ingest、query、mcp、graph、status |
 | `scholar-journal` | `/scholar-journal` | 面向特定期刊的格式化与投稿准备（22 种期刊，Nature Reporting Summary） |
 | `scholar-respond` | `/scholar-respond` | 5 种模式：simulate（3-4 位评审）、respond（逐条回应）、revise（字数预算）、resubmit（被拒后改投）、cover-letter |
 | `scholar-verify` | `/scholar-verify` | 两阶段"分析到稿件"一致性验证（4 智能体小组：数值、图形、逻辑、完整性） |
@@ -228,7 +229,7 @@ bash setup.sh
 1. 创建符号链接（`skills/` → `.claude/skills/`，`agents/` → `.claude/agents/`）
 2. 自动检测你的 Zotero 库（或提示输入路径）
 3. 按需配置 BibTeX、EndNote 与 CrossRef 邮箱
-4. 将全部 33 个技能 + 20 个智能体作为**个人技能**安装到 `~/.claude/skills/` 与 `~/.claude/agents/`——逐条安装，与已有个人技能并存
+4. 将全部 34 个技能 + 20 个智能体作为**个人技能**安装到 `~/.claude/skills/` 与 `~/.claude/agents/`——逐条安装，与已有个人技能并存
 5. 在 `~/.claude/settings.json` 中注册 PreToolUse 数据安全钩子（幂等；保留现有设置）
 6. 检查 `jq` 与 `python3`（数据安全钩子的必要依赖）
 7. 写入包含你的配置的 `.env` 文件

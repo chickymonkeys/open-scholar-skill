@@ -45,6 +45,8 @@ open-scholar-skill/
     │   ├── scholar-idea/        # Broad idea → formal RQ (5-agent evaluation panel)
     │   ├── scholar-journal/     # Submission prep (22 journals)
     │   ├── scholar-knowledge/   # User-scoped knowledge graph (INGEST, SEARCH, RELATE, STATUS, EXPORT)
+    │   ├── scholar-rag/         # Local vector DB + GraphRAG over the reference library; self-contained assets/ engine (bge-m3 + LanceDB + ollama) + MCP server
+
     │   ├── scholar-ling/        # 9 modules loaded on-demand via references/module-*.md
     │   ├── scholar-lit-review/  # Systematic literature review
     │   ├── scholar-lit-review-hypothesis/  # Integrated lit review + hypothesis

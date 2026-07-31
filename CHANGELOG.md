@@ -3,6 +3,18 @@
 All notable changes to open-scholar-skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.18.0] - 2026-07-31
+
+### New skill: `scholar-rag` — local vector database + GraphRAG over your reference library
+
+A fully-local, self-contained retrieval layer for literature review. It turns your whole Zotero library (or a folder of PDFs) into a searchable, cited knowledge base and exposes it to Claude Code + Codex via MCP. Complements `scholar-knowledge` (symbolic extracted findings, keyword-searched) with dense full-text **passage** retrieval — the exact paragraphs nearest a query, with author-year citation + page number, plus the papers near them.
+
+- **`.claude/skills/scholar-rag/SKILL.md`** — thin dispatcher (6 modes: `setup`, `ingest`, `query`, `mcp`, `graph`, `status`) over a real `assets/` execution engine, plus `references/engine.md`. Keeps `tools: Read, Bash, Write`.
+- **Engine (`assets/`)** — `zotero_reader.py` (reads `zotero.sqlite` read-only, resolves `storage/<key>/<file>` attachment paths), `extract.py` (PyMuPDF → `pdftotext` → optional ollama vision-OCR ladder), `chunk_embed.py` (section-aware chunking + **bge-m3** → **LanceDB** + BM25 full-text index), `query.py` (dense + hybrid RRF + cross-encoder rerank + section/year filters, page-anchored citations), `fetch.py` (open-access PDF fetch: Unpaywall → OpenAlex → arXiv, `%PDF`-verified, OA-only), `graphrag.py` (seed from `scholar-knowledge` → local-LLM entity/relation extraction → Leiden communities → community summaries → `local`/`global`/`neighbors` search), `mcp_server.py` (stdio MCP: `rag_search` / `rag_get_document` / `rag_neighbors` / `rag_stats`), `store.py` (corpus.sqlite manifest). Shell: `setup-venv.sh` (uv-provisioned CPython 3.12 venv), resumable `run-ingest.sh` / `run-graph.sh` / `build-all.sh`, `mcp-setup.sh` (Claude Code + Codex registration).
+- **Fully local / private** — bge-m3 embeddings + ollama (gpt-oss / qwen / deepseek, via `/api/chat` with `think:low`) + LanceDB + local MCP. Only the optional open-access fetch touches the network. Self-contained: provisions its own venv and bundles an RAO-trace fallback; no hard dependency on the rest of the plugin. User-scoped store at `~/.claude/scholar-rag/` (`SCHOLAR_RAG_DIR`).
+- **Integration** — GraphRAG seeds its entity graph from `scholar-knowledge` (concepts + citation edges). `scholar-lit-review` (Phase 1 full-text tier), `scholar-write` (evidence grounding), and `scholar-citation` (Step V-3.5 claim-verification retrieval by DOI) call `rag_search` when the index exists — citations still flow through the existing verification ladder / Verified Citation Pool. Extracted full text can also feed `/scholar-knowledge re-extract`.
+- **Docs** — README skills table + counts (36 total), USAGE table row + Zotero-Integration note, `plugin.json` description. Passes `tests/smoke/test-all-skills-emit-trace.sh` (RAO-trace instrumentation present).
+
 ## [5.17.0] - 2026-07-04
 
 ### Bilingual documentation — Simplified Chinese README + USAGE, multi-agent positioning

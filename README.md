@@ -121,7 +121,7 @@ If you are using open-scholar-skill to generate papers, you are encouraged to sh
 
 > **Trademark Notice:** Journal names listed above and throughout this project are trademarks of their respective publishers. They are used here for identification and formatting purposes only. This project is not affiliated with or endorsed by any journal or publisher.
 
-## Skills Overview (34 skills + 1 utility = 35 total)
+## Skills Overview (35 skills + 1 utility = 36 total)
 
 ### Research Pipeline (Orchestrator)
 
@@ -144,6 +144,7 @@ If you are using open-scholar-skill to generate papers, you are encouraged to sh
 | `scholar-citation` | `/scholar-citation` | 8-mode citation management: INSERT, AUDIT, CONVERT-STYLE, FULL-REBUILD, VERIFY, EXPORT (.bib), RETRACTION-CHECK, REPORTING-SUMMARY |
 | `scholar-code-review` | `/scholar-code-review` | 6-agent systematic code review: correctness, robustness, statistical fidelity, reproducibility, code style, data handling |
 | `scholar-knowledge` | `/scholar-knowledge` | User-scoped, cross-project knowledge graph (8 modes: INGEST, SEARCH, RELATE, STATUS, EXPORT, COMPILE wiki, ASK, RE-EXTRACT) — Obsidian-compatible markdown wiki with raw source archive |
+| `scholar-rag` | `/scholar-rag` | Fully-local **vector database + GraphRAG** over your whole reference library (Zotero or a PDF folder) for literature review. Locates/OA-fetches full-text PDFs, extracts (pdftotext/PyMuPDF/vision-OCR), chunks + embeds with **bge-m3** into **LanceDB**, and layers a local-LLM **GraphRAG** (entity/relation extraction + Leiden communities + summaries, seeded from `scholar-knowledge`). Exposes semantic retrieval to Claude Code + Codex via an **MCP server** (`rag_search`, `rag_get_document`, `rag_neighbors`, `rag_stats`). Self-contained (own venv); nothing leaves the machine. 6 modes: setup, ingest, query, mcp, graph, status |
 | `scholar-journal` | `/scholar-journal` | Journal-specific formatting and submission prep (22 journals, Nature Reporting Summary) |
 | `scholar-respond` | `/scholar-respond` | 5 modes: simulate (3-4 reviewers), respond (point-by-point), revise (word-budget), resubmit (rejection retarget), cover-letter |
 | `scholar-verify` | `/scholar-verify` | Two-stage analysis-to-manuscript consistency verification (4-agent panel: numerics, figures, logic, completeness) |
@@ -229,7 +230,7 @@ bash setup.sh
 1. Create symlinks (`skills/` → `.claude/skills/`, `agents/` → `.claude/agents/`)
 2. Auto-detect your Zotero library (or prompt for path)
 3. Optionally configure BibTeX, EndNote, and CrossRef email
-4. Install all 34 skills + 20 agents as **personal skills** in `~/.claude/skills/` and `~/.claude/agents/` — installed per-entry alongside any existing personal skills
+4. Install all 35 skills + 20 agents as **personal skills** in `~/.claude/skills/` and `~/.claude/agents/` — installed per-entry alongside any existing personal skills
 5. Register the PreToolUse data-safety hook in `~/.claude/settings.json` (idempotent; preserves existing settings)
 6. Check for `jq` and `python3` (required by the data-safety hook)
 7. Write a `.env` file with your configuration
