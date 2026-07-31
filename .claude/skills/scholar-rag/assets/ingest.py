@@ -11,9 +11,38 @@ Usage:
   python3 ingest.py folder <dir> [--limit N]
   python3 ingest.py status
 """
-import os, sys, json, glob, argparse, hashlib
+import os, re, sys, json, glob, argparse, hashlib
 import store
 import zotero_reader as zr
+
+
+def parse_zotero_filename(stem):
+    """Parse Zotero-style attachment names into (title, year, authors).
+
+    Handles the common patterns:
+      "Author(s) - YEAR - Title"   e.g. "Fiel and Zhang - 2019 - With All..."
+      "Author(s) YEAR"             e.g. "Irvine and Gal 2000"
+    Author strings like "X et al." are kept verbatim (single element) so the
+    citation formatter renders "X et al. (YEAR)"; "A and B" splits to [A, B].
+    Falls back to (stem, None, []) when nothing matches.
+    """
+    title, year, auth_raw = stem, None, None
+    m = re.match(r"^(.+?)\s+-\s+((?:18|19|20)\d{2})[a-z]?\s+-\s+(.+)$", stem)
+    if m:
+        auth_raw, year, title = m.group(1), int(m.group(2)), m.group(3).strip()
+    else:
+        m2 = re.match(r"^(.+?)\s+((?:18|19|20)\d{2})[a-z]?$", stem)
+        if m2:
+            auth_raw, year, title = m2.group(1), int(m2.group(2)), stem.strip()
+    if not auth_raw:
+        return stem, None, []
+    auth_raw = auth_raw.strip().strip("_")
+    if re.search(r"\bet al\.?$", auth_raw):
+        authors = [auth_raw]                                # keep "X et al." intact
+    else:
+        authors = [p.strip() for p in re.split(r"\s+and\s+|\s*&\s*|,\s+", auth_raw)
+                   if p.strip()]
+    return title, year, authors
 
 
 def ingest_zotero(limit=None, types=None, with_pdf_only=False):
@@ -41,21 +70,24 @@ def ingest_zotero(limit=None, types=None, with_pdf_only=False):
 def ingest_folder(folder, limit=None):
     con = store.connect()
     pdfs = sorted(glob.glob(os.path.join(folder, "**", "*.pdf"), recursive=True))
+    tag = "folder:" + os.path.basename(os.path.normpath(folder))
     n = 0
     for pdf in pdfs:
         if limit and n >= limit:
             break
         stem = os.path.splitext(os.path.basename(pdf))[0]
+        title, year, authors = parse_zotero_filename(stem)
+        # path-based id: stable + idempotent, dedupes re-runs of the same folder
         doc_id = hashlib.sha256(pdf.encode()).hexdigest()[:16]
-        rec = {"doc_id": doc_id, "zotero_key": "", "doi": "", "title": stem,
-               "authors": [], "year": None, "journal": "", "item_type": "pdf",
-               "source": "folder",
+        rec = {"doc_id": doc_id, "zotero_key": "", "doi": "", "title": title,
+               "authors": authors, "year": year, "journal": "", "item_type": "pdf",
+               "source": tag,
                "pdf_paths": [{"path": pdf, "exists": True, "link_mode": 2, "key": ""}]}
         store.upsert_document(con, rec)
         n += 1
     con.commit()
-    store.write_manifest(source="folder", folder=folder)
-    return {"ingested": n, **store.counts(con)}
+    store.write_manifest(source=tag, folder=folder)
+    return {"ingested": n, "source": tag, **store.counts(con)}
 
 
 def main():
