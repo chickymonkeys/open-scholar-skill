@@ -14,7 +14,7 @@ A Claude Code project for social scientists writing for top-tier journals. Cover
 
 Built for **Claude Code**, but not locked to it: the skills are plain-markdown instruction folders that **OpenAI Codex** and other coding agents can load too. Link them into `~/.codex/skills` and invoke them in natural language ("Use scholar-idea to sharpen this research question"). The data-safety layer travels with the host — `/scholar-init` installs the same PreToolUse guard as a Codex hook in `<project>/.codex/config.toml` (see [Data Safety](#data-safety-v590)).
 
-> **If you use open-scholar-skill, please cite [Zhang (2026), arXiv:2602.22401](https://arxiv.org/abs/2602.22401).** See the [Citation](#citation) section below for the full reference and BibTeX.
+> **If you use open-scholar-skill, please cite [Zhang (2026), *Chinese Sociological Review*](https://doi.org/10.1080/21620555.2026.2707167).** See the [Citation](#citation) section below for the full reference and BibTeX (an arXiv preprint is also available).
 
 ## Ethical Use of AI in Academic Research
 
@@ -566,20 +566,26 @@ Research Question
 
 ## Citation
 
-If you use **open-scholar-skill** in your research, teaching, or any derivative work, please cite the paper that introduces it:
+If you use **open-scholar-skill** in your research, teaching, or any derivative work, please cite the published paper that introduces it:
 
-> Zhang, Yongjun. 2026. "Vibe Researching as Wolf Coming: Can AI Agents with Skills Replace or Augment Social Scientists?" *arXiv preprint* [arXiv:2602.22401](https://arxiv.org/abs/2602.22401).
+> Zhang, Yongjun. 2026. "Vibe Researching: Can AI Agents with Skills Replace or Augment Social Scientists?" *Chinese Sociological Review*. https://doi.org/10.1080/21620555.2026.2707167
 
 BibTeX:
 
 ```bibtex
 @article{zhang2026vibe,
-  title   = {Vibe Researching as Wolf Coming: Can AI Agents with Skills Replace or Augment Social Scientists?},
+  title   = {Vibe Researching: Can AI Agents with Skills Replace or Augment Social Scientists?},
   author  = {Zhang, Yongjun},
-  journal = {arXiv preprint arXiv:2602.22401},
+  journal = {Chinese Sociological Review},
   year    = {2026},
-  url     = {https://arxiv.org/abs/2602.22401}
+  pages   = {1--36},
+  doi     = {10.1080/21620555.2026.2707167},
+  url     = {https://doi.org/10.1080/21620555.2026.2707167}
 }
 ```
+
+An open-access preprint is also available on arXiv — **please cite the published version above**, not the preprint:
+
+> Zhang, Yongjun. 2026. "Vibe Researching as Wolf Coming: Can AI Agents with Skills Replace or Augment Social Scientists?" *arXiv preprint* [arXiv:2602.22401](https://arxiv.org/abs/2602.22401).
 
 A citation helps sustain development of the skill suite and signals to journals and reviewers that AI-assisted workflows used here have a documented methodological basis.

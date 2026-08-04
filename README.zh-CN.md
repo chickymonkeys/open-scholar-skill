@@ -14,7 +14,7 @@
 
 本套件为 **Claude Code** 而构建，但并不与之绑定：这些技能就是纯 markdown 的指令文件夹，**OpenAI Codex** 及其他编码智能体同样可以加载。把它们链接到 `~/.codex/skills`，即可用自然语言调用（例如 "Use scholar-idea to sharpen this research question"，即"用 scholar-idea 打磨这个研究问题"）。数据安全层会随宿主一同迁移——`/scholar-init` 会把同一个 PreToolUse 守卫作为 Codex 钩子安装到 `<project>/.codex/config.toml`（见[数据安全](#数据安全-v590)）。
 
-> **如果你使用了 open-scholar-skill，请引用 [Zhang (2026), arXiv:2602.22401](https://arxiv.org/abs/2602.22401)。** 完整参考文献与 BibTeX 见下方[引用](#引用)一节。
+> **如果你使用了 open-scholar-skill，请引用 [Zhang (2026), *Chinese Sociological Review*](https://doi.org/10.1080/21620555.2026.2707167)。** 完整参考文献与 BibTeX 见下方[引用](#引用)一节（arXiv 上亦有预印本）。
 
 ## 学术研究中 AI 的伦理使用
 
@@ -565,20 +565,26 @@ Research Question
 
 ## 引用
 
-如果你在研究、教学或任何衍生作品中使用了 **open-scholar-skill**，请引用介绍它的论文：
+如果你在研究、教学或任何衍生作品中使用了 **open-scholar-skill**，请引用介绍它的已发表论文：
 
-> Zhang, Yongjun. 2026. "Vibe Researching as Wolf Coming: Can AI Agents with Skills Replace or Augment Social Scientists?" *arXiv preprint* [arXiv:2602.22401](https://arxiv.org/abs/2602.22401).
+> Zhang, Yongjun. 2026. "Vibe Researching: Can AI Agents with Skills Replace or Augment Social Scientists?" *Chinese Sociological Review*. https://doi.org/10.1080/21620555.2026.2707167
 
 BibTeX:
 
 ```bibtex
 @article{zhang2026vibe,
-  title   = {Vibe Researching as Wolf Coming: Can AI Agents with Skills Replace or Augment Social Scientists?},
+  title   = {Vibe Researching: Can AI Agents with Skills Replace or Augment Social Scientists?},
   author  = {Zhang, Yongjun},
-  journal = {arXiv preprint arXiv:2602.22401},
+  journal = {Chinese Sociological Review},
   year    = {2026},
-  url     = {https://arxiv.org/abs/2602.22401}
+  pages   = {1--36},
+  doi     = {10.1080/21620555.2026.2707167},
+  url     = {https://doi.org/10.1080/21620555.2026.2707167}
 }
 ```
+
+arXiv 上也提供开放获取的预印本——但**请引用上面的已发表版本**，而非预印本：
+
+> Zhang, Yongjun. 2026. "Vibe Researching as Wolf Coming: Can AI Agents with Skills Replace or Augment Social Scientists?" *arXiv preprint* [arXiv:2602.22401](https://arxiv.org/abs/2602.22401).
 
 你的引用有助于本技能套件的持续开发，也向期刊和评审人表明：此处使用的 AI 辅助工作流具有可查证的方法论依据。
