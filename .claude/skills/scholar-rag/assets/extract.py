@@ -24,12 +24,53 @@ DEFAULT_MIN_CPP = 80
 
 
 def _dehyphenate(text):
+    """Join lines that merely WRAPPED; keep line breaks that carry structure.
+
+    A PDF extractor emits one newline per visual line, so prose arrives broken
+    at the column width. Collapsing every single newline (the original rule)
+    reflowed the prose but also destroyed standalone heading lines, leaving
+    chunk_embed.detect_sections nothing to anchor on — 98% of chunks came back
+    labelled 'front'.
+
+    A line that ran to the column edge wrapped; a line that stopped short ended
+    deliberately (heading, author line, list item, last line of a paragraph).
+    So a break is kept unless the line reached most of the body width — or
+    unless the next line opens lowercase, which is an unambiguous mid-sentence
+    continuation. Headings are followed by capitalised body text, so that second
+    rule never swallows them.
+    """
     # join words split across line breaks:  "popula-\ntion" -> "population"
     text = re.sub(r"(\w)-\n(\w)", r"\1\2", text)
-    # collapse intra-paragraph single newlines to spaces, keep blank-line breaks
     text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"(?<!\n)\n(?!\n)", " ", text)
+
+    lines = text.split("\n")
+    lens = sorted(len(l.rstrip()) for l in lines if l.strip())
+    if not lens:
+        return text.strip()
+    # 75th percentile approximates the body column width; a plain median would
+    # be dragged down by table cells and figure labels on dense pages.
+    width = lens[min(int(len(lens) * 0.75), len(lens) - 1)]
+    join_min = max(30, int(width * 0.75))
+
+    out, buf = [], ""
+    for i, raw in enumerate(lines):
+        ln = raw.rstrip()
+        if not ln.strip():                      # blank line = paragraph break
+            if buf:
+                out.append(buf); buf = ""
+            out.append("")
+            continue
+        nxt = lines[i + 1].strip() if i + 1 < len(lines) else ""
+        buf = (buf + " " + ln.strip()).strip() if buf else ln.strip()
+        continues = bool(re.match(r"^[a-z]", nxt))
+        if not nxt or (len(ln) < join_min and not continues):
+            out.append(buf); buf = ""
+    if buf:
+        out.append(buf)
+
+    text = "\n".join(out)
     text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
 

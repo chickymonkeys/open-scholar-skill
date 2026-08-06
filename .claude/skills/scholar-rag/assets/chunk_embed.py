@@ -25,21 +25,106 @@ CHARS_PER_CHUNK = int(os.environ.get("RAG_CHUNK_CHARS", "2000"))   # ~500 tokens
 CHUNK_OVERLAP = int(os.environ.get("RAG_CHUNK_OVERLAP", "300"))    # ~75 tokens
 TABLE = "chunks"
 
-# section header patterns (line is short + starts with/equals a known heading)
-_SECTIONS = [
-    ("abstract", r"abstract|summary"),
-    ("introduction", r"introduction|background"),
-    ("literature", r"literature review|related work|prior (work|research|literature)|theoretical (background|framework)|theory"),
-    ("methods", r"methods?|methodology|materials and methods|data and methods|research design|empirical (strategy|approach)|study design"),
-    ("results", r"results?|findings|empirical results|analysis"),
-    ("discussion", r"discussion|general discussion"),
-    ("conclusion", r"conclusions?|concluding remarks"),
-    ("references", r"references|bibliography|works cited|literature cited"),
-]
+# ---- section detection -------------------------------------------------------
+# extract.py collapses single newlines into spaces (see _dehyphenate), so by the
+# time text reaches here a 30-page paper is only a handful of "lines" and
+# headings sit INLINE inside running text. Detection therefore anchors on
+# structural boundaries rather than line starts. A line-based pass still runs
+# afterwards for extractions that did preserve their line breaks.
+
+# canonical order; used to force marks to progress monotonically through a paper
+_CANON = ["abstract", "introduction", "literature", "methods",
+          "results", "discussion", "conclusion", "references"]
+
+# Case-SENSITIVE surface forms. Requiring Title Case / ALL CAPS is the single
+# strongest filter against prose mentions ("as noted in the introduction ...").
+_ALTS = {
+    "abstract":     r"Abstract|ABSTRACT",
+    "introduction": r"Introduction|INTRODUCTION",
+    "literature":   r"Literature Review|LITERATURE REVIEW|Related Work|Prior Research|"
+                    r"Prior Literature|Theoretical Background|Theoretical Framework|"
+                    r"Conceptual Framework|Background and Theory",
+    "methods":      r"Materials and Methods|MATERIALS AND METHODS|Data and Methods|"
+                    r"DATA AND METHODS|Methods and Data|Methodology|METHODOLOGY|"
+                    r"Methods|METHODS|Method|Research Design|Empirical Strategy|"
+                    r"Empirical Approach|Study Design|Data and Measures",
+    "results":      r"Results and Discussion|Results|RESULTS|Findings|FINDINGS|"
+                    r"Empirical Results",
+    "discussion":   r"Discussion and Conclusion[s]?|Discussion|DISCUSSION|General Discussion",
+    "conclusion":   r"Conclusions|Conclusion|CONCLUSIONS?|Concluding Remarks",
+    "references":   r"References|REFERENCES|Bibliography|BIBLIOGRAPHY|Works Cited|"
+                    r"Literature Cited",
+}
+
+# A heading sits at a structural boundary (start of text, page break, or the end
+# of the previous sentence), may carry a section number, and is followed by body
+# text starting with a capital or digit.
+_PRE = r"(?:\A|\n|(?<=[.!?])\s{1,4}|(?<=[.!?]\s))"
+_NUM = r"(?:\d{1,2}\s*[.)]?\s+|[IVX]{1,5}\s*[.)]\s+)?"
+_POST = r"\s*[:.—-]?\s+(?=[A-Z“\"(\d])"
+_HEAD_RES = {lab: re.compile(_PRE + _NUM + r"(?:" + alt + r")" + _POST)
+             for lab, alt in _ALTS.items()}
+
+# Standalone-heading form, for extractor output that kept its newlines.
 _SECTION_RE = re.compile(
-    r"^\s*(?:\d+\.?\s+|[IVXivx]+\.\s+)?(" +
-    "|".join("(?P<s%d>%s)" % (i, p) for i, (_, p) in enumerate(_SECTIONS)) +
-    r")\s*:?\s*$", re.IGNORECASE)
+    r"^\s*" + _NUM + r"(?P<h>" +
+    "|".join("(?:%s)" % a for a in _ALTS.values()) + r")\s*:?\s*$")
+
+# Where each section plausibly begins, as a fraction of the document. _PRIOR
+# only breaks ties; _WINDOW is a hard reject for out-of-place matches.
+_PRIOR = {"abstract": 0.02, "introduction": 0.08, "literature": 0.20,
+          "methods": 0.40, "results": 0.58, "discussion": 0.75,
+          "conclusion": 0.86, "references": 0.93}
+_WINDOW = {"abstract": (0.0, 0.25), "introduction": (0.0, 0.45),
+           "literature": (0.02, 0.60), "methods": (0.05, 0.80),
+           "results": (0.10, 0.92), "discussion": (0.25, 0.97),
+           "conclusion": (0.35, 0.99), "references": (0.40, 1.0)}
+
+
+def _heading_candidates(full):
+    """All plausible heading offsets per label, filtered by position window."""
+    n = max(len(full), 1)
+    out = {}
+    for lab, rx in _HEAD_RES.items():
+        lo, hi = _WINDOW[lab]
+        hits = []
+        for m in rx.finditer(full):
+            s = m.start()
+            while s < len(full) and full[s] in " \n\t":
+                s += 1          # anchor on the word, not the leading boundary
+            if lo <= s / n <= hi:
+                hits.append(s)
+        if hits:
+            out[lab] = hits
+    return out
+
+
+def _choose_marks(cands, n):
+    """At most one offset per label, strictly increasing in canonical order.
+
+    Maximises how many sections get placed, breaking ties by closeness to the
+    positional prior — a paper whose "Methods" only matches at 5% of the way in
+    is better explained by dropping that match than by accepting it.
+    """
+    labs = [l for l in _CANON if l in cands]
+    best = [None]
+
+    def rec(i, prev, chosen, pen):
+        if i == len(labs):
+            key = (len(chosen), -pen)
+            if best[0] is None or key > best[0][0]:
+                best[0] = (key, list(chosen))
+            return
+        rec(i + 1, prev, chosen, pen)                  # skip this section
+        for pos in cands[labs[i]]:                     # or take the first viable
+            if pos > prev:
+                chosen.append((labs[i], pos))
+                rec(i + 1, pos, chosen, pen + abs(pos / n - _PRIOR[labs[i]]))
+                chosen.pop()
+                break
+
+    rec(0, -1, [], 0.0)
+    return best[0][1] if best[0] else []
 
 
 def build_fulltext(pages):
@@ -61,21 +146,32 @@ def char_to_page(offset, page_starts):
 def detect_sections(full_text):
     """Return list of (label, start_char, end_char) covering full_text.
     Unlabeled spans before the first heading are 'front'."""
-    marks = []  # (start_char, label)
+    n = len(full_text)
+    if n == 0:
+        return [("front", 0, 0)]
+
+    marks = _choose_marks(_heading_candidates(full_text), n)
+
+    # Second pass for extractor output that preserved line breaks: a heading
+    # alone on a short line is unambiguous, so it fills any label still missing.
+    seen = {lab for lab, _ in marks}
     for m in re.finditer(r"^.{0,60}$", full_text, re.MULTILINE):
-        line = m.group(0)
-        sm = _SECTION_RE.match(line)
+        sm = _SECTION_RE.match(m.group(0))
         if not sm:
             continue
-        for i, (label, _) in enumerate(_SECTIONS):
-            if sm.group("s%d" % i):
-                marks.append((m.start(), label)); break
-    if not marks or marks[0][0] > 0:
-        marks = [(0, "front")] + marks
+        for lab, alt in _ALTS.items():
+            if lab not in seen and re.fullmatch("(?:%s)" % alt, sm.group("h")):
+                marks.append((lab, m.start())); seen.add(lab); break
+
+    marks.sort(key=lambda t: t[1])
+    if not marks or marks[0][1] > 0:
+        marks = [("front", 0)] + marks
+
     spans = []
-    for i, (start, label) in enumerate(marks):
-        end = marks[i + 1][0] if i + 1 < len(marks) else len(full_text)
-        spans.append((label, start, end))
+    for i, (label, start) in enumerate(marks):
+        end = marks[i + 1][1] if i + 1 < len(marks) else n
+        if end > start:                      # drop zero-width spans
+            spans.append((label, start, end))
     return spans
 
 

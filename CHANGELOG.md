@@ -3,6 +3,20 @@
 All notable changes to open-scholar-skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.18.1] - 2026-08-06
+
+### Fixed: `scholar-rag` section detection was labelling 98% of chunks `front`
+
+Two upstream bugs made `chunk_embed.detect_sections` almost entirely inert, so section-filtered retrieval (`rag_search(section="methods")`) returned nothing useful and reference lists were indexed as if they were body prose.
+
+- **`assets/extract.py` — `_dehyphenate` destroyed line structure.** The rule `re.sub(r"(?<!\n)\n(?!\n)", " ", text)` collapsed *every* single newline to reflow PDF-wrapped prose, which also flattened standalone heading lines; a 30-page paper arrived as a handful of giant blobs. It now decides per line break: a line that ran to the body column width wrapped and is joined, a line that stopped short ended deliberately (heading, author line, list item, paragraph end) and keeps its break. A line whose successor opens lowercase is always joined, which keeps prose intact — headings are followed by capitalised text and so are never swallowed. Column width is estimated per page from the 75th percentile of line lengths, since a plain median is dragged down by table cells and figure labels.
+
+- **`assets/chunk_embed.py` — `detect_sections` only matched standalone heading lines.** It now anchors headings on structural boundaries (start of text, page break, end of the previous sentence) so it works on inline headings too, with case-sensitive surface forms to reject prose mentions ("as noted in the introduction"), position windows to reject implausible placements, and a DP pass that forces marks to progress in canonical section order. The original line-based pass is retained for extractor output that did preserve newlines.
+
+Measured over 300 documents from a real 4,000-paper library: documents with ≥3 identified sections went from **0.7% → 42%**, reference-list detection from **1.7% → 64%**, and chunks labelled `front` from **98.3% → 41%**. Re-extracting with the `_dehyphenate` fix as well raises those to 62% and 85%. Because `chunk_document` excludes the `references` span from the chunk pool, roughly **12–19% of indexed text stops being bibliography**.
+
+Both fixes apply to newly ingested documents. Existing indexes keep their labels until re-ingested: `python extract.py run --force && python chunk_embed.py run --force`.
+
 ## [5.18.0] - 2026-07-31
 
 ### New skill: `scholar-rag` — local vector database + GraphRAG over your reference library
