@@ -1,0 +1,49 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "open-scholar",
+  "description": "Open Scholar — AI-assisted research skills for the social sciences, from research question to submission-ready manuscript and replication package.",
+  "owner": {
+    "name": "ZhangYGroup (Yongjun Zhang)",
+    "email": "joshzyj@gmail.com",
+    "url": "https://github.com/joshzyj"
+  },
+  "plugins": [
+    {
+      "name": "open-scholar-skill",
+      "displayName": "Open Scholar Skills",
+      "source": "./",
+      "description": "The full social-science research pipeline as skills: idea formalization, systematic literature review, theory and hypotheses, research design with power analysis, causal identification, EDA, analysis with publication-quality tables and figures, computational social science, LLM annotation, section-by-section drafting, citation verification, journal formatting, ethics, replication packages, and simulated peer review. Ships specialized reviewer, code-review, and verification subagents, plus a PreToolUse data-safety guard.",
+      "author": {
+        "name": "ZhangYGroup (Yongjun Zhang)",
+        "email": "joshzyj@gmail.com",
+        "url": "https://github.com/joshzyj"
+      },
+      "homepage": "https://github.com/joshzyj/open-scholar-skill",
+      "repository": "https://github.com/joshzyj/open-scholar-skill",
+      "category": "research",
+      "keywords": [
+        "academic-writing",
+        "social-science",
+        "sociology",
+        "demography",
+        "computational-social-science",
+        "literature-review",
+        "research-design",
+        "causal-inference",
+        "data-analysis",
+        "citation-management",
+        "peer-review",
+        "replication",
+        "reproducibility",
+        "research-ethics"
+      ],
+      "tags": [
+        "research",
+        "academic",
+        "social-science",
+        "writing",
+        "statistics"
+      ]
+    }
+  ]
+}
