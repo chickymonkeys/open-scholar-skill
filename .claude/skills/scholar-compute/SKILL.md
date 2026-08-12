@@ -20,6 +20,13 @@ The user has provided: `$ARGUMENTS`
 **Step 1 — Detect causal intent (CRITICAL):**
 If the argument contains causal keywords — `effect of`, `impact of`, `causal`, `DiD`, `IV`, `RD`, `instrumental variable`, `matching`, `mediation` — and the method is NOT Double ML or Causal Forest being used to estimate that effect: **stop and invoke `/scholar-causal` first** to establish the identification strategy.
 
+**Step 1d — Detect annotation-as-measurement intent (REDIRECT):**
+If the argument contains `llm annotation`, `annotate`, `annotation`, `label the corpus`, `labelled variable`, `labeled variable`, `codebook`, `gold set`, `devset`, `inter-coder`, `kappa`, `krippendorff`, `framing coding`, `stance coding`, `relevance filter`, `classify the corpus`, `measure X over the corpus`, or `distill labels`: **stop and invoke `/scholar-annotate`** instead of routing to MODULE 7 here. LLM-as-measurement is owned end to end by the self-contained `scholar-annotate` skill — codebook design, dev/gold construction, DSPy optimization, the **hard κ + coverage + construct-match gate**, Batch/local/HPC scale-out, and distillation — via a real execution engine (`assets/annotate_engine.py`).
+
+MODULE 7 here retains only the **ad-hoc** LLM half: one-off structured extraction, RAG / document QA, inductive grounded-theory discovery loops, and prompt-optimization technique. The distinction is whether the output is *an artifact a researcher reads* (stay) or *a variable a model consumes* (redirect). Anything that will be counted, modelled, or reported as a measured quantity goes to `/scholar-annotate` so it passes a gate.
+
+**Why this redirect is enforced.** A measurement produced outside the annotate gate can hard-code a constant measured under a *broader* construct than the consuming model implements — an instrument mismatch that reliability metrics cannot detect, because both instruments validate well against their own gold. There is no equivalent gate in this module.
+
 **Step 2 — Route to module:**
 
 | Keyword(s) in argument | Module |
@@ -30,7 +37,7 @@ If the argument contains causal keywords — `effect of`, `impact of`, `causal`,
 | `abm`, `simulation`, `agent`, `schelling`, `mesa`, `netlogo`, `emergence` | MODULE 4 |
 | `reproduce`, `replication`, `environment`, `docker`, `conda`, `pipeline` | MODULE 5 |
 | `image`, `video`, `photo`, `visual`, `clip`, `vit`, `convnet`, `street view`, `satellite`, `protest image`, `aerial`, `computer vision` | MODULE 6 |
-| `llm analysis`, `gpt analysis`, `claude analysis`, `agent workflow`, `structured extraction`, `grounded theory`, `document qa`, `llm pipeline` | MODULE 7 |
+| `llm analysis`, `gpt analysis`, `claude analysis`, `agent workflow`, `structured extraction`, `grounded theory`, `document qa`, `llm pipeline` | MODULE 7 (ad-hoc only — measurement redirects to `/scholar-annotate`, Step 1d) |
 | `synthetic data`, `synthetic respondents`, `silicon sampling`, `simulate survey`, `simulate respondents`, `persona simulation`, `context engineering`, `prompt engineering simulation`, `llm survey`, `llm respondents`, `vignette simulation`, `conjoint simulation`, `opinion formation`, `synthetic population`, `simulated behavior`, `hiring simulation`, `organizational simulation`, `group behavior simulation` | MODULE 8 |
 | `spatial`, `geospatial`, `choropleth`, `moran`, `spatial lag`, `spatial error`, `spdep`, `census tract`, `county-level`, `geographic clustering`, `neighborhood effects`, `local indicators`, `LISA`, `spatial autocorrelation`, `spatial regression` | MODULE 9 |
 | `audio`, `speech`, `sound`, `whisper`, `transcribe`, `transcription`, `essentia`, `mfcc`, `acoustic`, `podcast`, `debate`, `oral history`, `voice`, `speaker diarization`, `audio classification`, `audio features`, `waveform` | MODULE 10 |

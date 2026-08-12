@@ -93,7 +93,21 @@ bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_R
 
 Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
 
-## Canonical reference — `references/diagnostic-patterns.md`
+## Canonical references
+
+Two, and both are loaded before OBSERVE / AUDIT / IMPROVE:
+
+- **`references/diagnostic-patterns.md`** — the diagnostic-to-action mapping for this skill.
+- **`_shared/defect-class-registry.md`** — the cross-project catalogue of defect **classes**
+  (DC-01 three-valued collapse, DC-02 guards verified only in their design state, DC-03 fix
+  commits as a fresh unaudited surface, DC-04 a measurement consumed without its instrument,
+  DC-05 defaults that determine evidentiary strength, DC-06 presence checked where vintage is
+  meant, DC-07 pins trusted by permission). Sweep the project for each class, not only for the
+  symptoms already reported: on the run that produced this registry, instances 1–5 of DC-01 were
+  found incidentally across four review iterations, and instances 6–14 were found **within hours
+  of the class being named**, by agents sweeping for the pattern. When a defect you find is a new
+  recurring class, add it there (see §How to add a class) rather than only filing the instance.
+
 
 Before running OBSERVE (Mode 1) or AUDIT (Mode 2), load the canonical diagnostic reference:
 
@@ -417,12 +431,53 @@ Assess:
 
 **Purpose**: Generate specific, actionable fixes for issues found in OBSERVE or AUDIT modes.
 
-### Step 3a: Issue Ingestion
+### Step 3a: Issue Ingestion — THREE sources, not one
 
-Read the most recent observation or audit report from `${OUTPUT_ROOT}/auto-improve/`.
-Parse all issues with severity >= WARN.
+Ingest from all three; they surface different defect populations.
 
-If no prior report exists, run AUDIT first (Mode 2), then proceed.
+**(1) Prior auto-improve reports.** The most recent observation or audit report from
+`${OUTPUT_ROOT}/[slug]/auto-improve/` (and the legacy `${OUTPUT_ROOT}/auto-improve/`). Parse all
+issues with severity >= WARN.
+
+**(2) Hand-authored run ledgers — REQUIRED, and usually the richest source.** A long run often
+leaves a defect ledger written *by the operator as the run proceeded*, naming the skill-system
+failures the mechanical scans cannot see. Look for, in order:
+
+```bash
+# canonical locations, newest first
+ls -t "${OUTPUT_ROOT}/[slug]"/logs/scholar-system-handoff*.md \
+      "${OUTPUT_ROOT}/[slug]"/logs/*handoff*.md \
+      "${OUTPUT_ROOT}/[slug]"/logs/*lessons*.md \
+      "${OUTPUT_ROOT}/[slug]"/auto-improve/*ledger*.md 2>/dev/null | head -5
+```
+
+Parse any `UPDATE REGISTER`-style table (columns: id | target | change | source finding |
+STATUS) into the issue list, one issue per row, carrying the row id (`U1`, `U2`, …) as the fix
+id. Rows already marked `DONE`/`APPLIED` are skipped; `OPEN` rows enter the queue. Also read the
+narrative sections the register cites — the register is the actionable half, the sections are
+the evidence you need for the **Verified Cause** field.
+
+**Why this is mandatory.** The 2026-08 large-corpus annotation run wrote
+`logs/scholar-system-handoff.md` with a 19-row UPDATE REGISTER and a header naming
+`/scholar-auto-improve` as its intended consumer. This skill had no ingestion path for it:
+Step 3a read only `auto-improve/`, which for that project was **empty**. IMPROVE would have
+found nothing, fallen back to a structural AUDIT, and never seen the register — including the
+row the ledger itself nominated as highest-value. The richest input the pipeline produces was
+unreadable by the skill it was addressed to.
+
+**Do not trust a ledger row without checking it.** ABSOLUTE RULE 5 applies with full force to
+ingested claims: every path, line number, and gate name in a hand-authored register is a claim to
+re-verify against the live tree before it becomes a fix proposal. On the 2026-08 register, two of
+nineteen rows named a target that does not exist in the plugin (they described project-local
+files); those rows needed retargeting, not implementation. Record such corrections explicitly in
+the improve report rather than silently dropping or silently obeying the row.
+
+**(3) The cross-project defect-class registry.** `_shared/defect-class-registry.md`. For each
+class listed there, check whether the current project reproduces it. Classes recur across
+projects and recur *in the guards written to prevent them* — a class-driven sweep finds
+instances that no symptom-driven scan will.
+
+If none of the three yields anything, run AUDIT first (Mode 2), then proceed.
 
 ### Step 3b: Fix Generation (Agentic Error Analyst)
 

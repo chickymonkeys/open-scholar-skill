@@ -3,6 +3,99 @@
 All notable changes to open-scholar-skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.18.2] - 2026-08-12
+
+### Fixed: `scholar-annotate` MODE 7 — the hard reliability gate could be passed by a failing annotator
+
+**If you use `/scholar-annotate`, update.** The κ gate that is supposed to block a full-corpus
+run had three independent defects, any one of which could clear an annotator that should have
+been rejected. Run against a fixture where the annotator failed **40% of documents** and scored
+κ = 0.000 on its second field, the shipped gate printed `FAIL` on both fields and then
+`PASS — cleared for MODE 8`, exit 0.
+
+- **The gate excused the annotator's own failures.** `cmd_validate` inner-joined predictions
+  onto gold, so every document the annotator failed on left the denominator. Failing the hard
+  cases and answering the easy ones *raised* the reported κ. Gold is now the denominator: the
+  report carries `n_gold_labeled`, `n_scored`, `n_unscored` and `coverage`, and RED-fails below
+  `--min-coverage` (default 0.95). Each excluded row records the branch that excluded it
+  (`annotator_absent` / `annotator_blank` / `gold_empty`). The `g.notna()` mask was also dead
+  code after `.fillna("")`.
+- **An undefined κ passed.** A degenerate single-label column — which is what a high failure
+  rate produces — yields κ = NaN, and `nan < 0.70` is `False` in IEEE-754, so the gate flag was
+  never cleared. `cohen_kappa` is now `null` with a companion `kappa_undefined_reason`, and
+  never passes.
+- **Only the first `--on` field could fail the gate.** A secondary field at κ = 0.000 printed
+  `FAIL` and still exited 0. All named fields are gated by default; `--primary-only` restores
+  the old behaviour and records that choice in the report.
+
+Also in the engine: `validation_report.json` is now strict JSON (it previously emitted bare
+`NaN`, which non-Python parsers reject); unreadable corpus files fail closed rather than
+silently shrinking the sample (`--allow-unreadable N` to opt in, count stamped on the output);
+`sample` writes a `<out>.design.json` sidecar recording n / pool / seed / strata / lexicon
+digest, so a measurement's design parameters stop living only in whoever last typed the command.
+
+### Added: construct-match — a measurement is a number *plus the question that produced it*
+
+The κ gate certifies an annotator **for the task as prompted**. It structurally cannot detect
+that the prompt asked a broader or narrower question than the model consuming the number needs
+— both instruments validate well against their own gold, so no reliability metric sees the
+mismatch. That gap is now closed by a second blocking check at MODE 7.
+
+- **New** `scripts/gates/measurement-instrument-check.sh` — binds every measurement-derived
+  constant to the instrument that produced it, and every instrument to a recorded `asked` vs
+  `needed` verdict (`MATCH` / `BROADER` / `NARROWER` / `UNASSESSED`, no default). Also catches
+  constants that drifted from their declaration, and artifacts produced under design parameters
+  that disagree with `design/measurement-design.json`. Exit 0/1/2/3; **INERT on any project that
+  never used the measurement path**, so it is silent for everyone else.
+- **New** `.claude/skills/scholar-annotate/references/construct-match.md` — the schema, the
+  verdict table, and the failure mode it prevents.
+- `validation_report.json` now carries an `instrument` block (model, api_base, codebook digest,
+  program hash, timestamp). Absent provenance RED-fails unless explicitly waived with
+  `--no-instrument`, which records the waiver on the artifact.
+- Wired into `phase-verify.sh` Phase 6.
+
+### Added: `_shared/defect-class-registry.md` — cross-project defect classes
+
+Seven named classes (three-valued logic collapse and its four shapes; guards verified only in
+the state they were designed for; fix commits as a fresh unaudited surface; a measurement
+consumed without its instrument; defaults that determine evidentiary strength; presence checked
+where vintage is meant; pins trusted by permission rather than verified by content) — each with
+a mechanism, an evidence table, a countable trigger where one exists, and the remedy *plus its
+constraints*. All six `review-code-*` agents now sweep for the class registry on every dispatch,
+and `scholar-auto-improve` loads it during AUDIT and IMPROVE.
+
+**Provenance note:** these classes are documented from a single large annotation run, not
+validated across a corpus of projects. Treat them as named patterns to sweep for, not as
+established base rates.
+
+### Changed
+
+- **`scholar-compute` MODULE 7 now redirects annotation-as-measurement to `/scholar-annotate`**
+  (new Step 1d). MODULE 7 keeps the ad-hoc half — one-off extraction, RAG / document QA,
+  grounded-theory discovery, prompt-optimization technique. The dividing line is whether the
+  output is an artifact a researcher *reads* or a variable a model *consumes*. Previously
+  `scholar-annotate` claimed to replace MODULE 7 while MODULE 7 never referenced it, so the
+  skill carrying the reliability gate was reachable only by direct invocation.
+- **`review-code-robustness` and `review-code-correctness`** must now emit a per-guard
+  **FIRES ON / SLIPS PAST** pair — what input makes a guard trigger, and what it is meant to
+  catch but does not.
+- **`review-code-statistics` and `review-code-data-handling`** must now trace every
+  measurement-derived constant to its instrument and judge construct match.
+- **All six `review-code-*` agents** additionally distinguish findings **verified at time of
+  writing** from those **inherited earlier in the session**.
+- **`scholar-auto-improve` IMPROVE Step 3a** ingests three sources rather than one: prior
+  auto-improve reports, **hand-authored run ledgers**, and the defect-class registry. Ledger
+  rows are treated as claims to re-verify against the live tree, never as facts.
+- **`_shared/objectivity-mandate.md`** gains rule 9: state whether a relayed claim was
+  **verified** or **forwarded**.
+
+### Tests
+
+Five new smoke suites (`test-annotate-engine-gate`, `test-measurement-instrument-check`,
+`test-annotate-routing`, `test-defect-class-registry`, `test-agent-tool-grants`). Suites that
+assert on components this distribution does not ship (`scholar-full-paper`,
+`model-spec-lint.sh`) report **INERT** for those checks rather than passing silently.
+
 ## [5.18.1] - 2026-08-06
 
 ### Fixed: `scholar-rag` section detection was labelling 98% of chunks `front`

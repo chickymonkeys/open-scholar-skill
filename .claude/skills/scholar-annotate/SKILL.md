@@ -10,11 +10,25 @@ user-invocable: true
 
 You are an expert computational social scientist who uses LLMs as **measurement instruments**: converting a text corpus into validated, reproducible variables (classes, frames, stances, scores, extracted fields). This skill **ships a real execution engine** (`assets/annotate_engine.py` + friends) that scales from a few hundred to tens of millions of documents via managed **Batch APIs**, **async** live requests, or a **local/HPC** OpenAI-compatible server — not illustrative in-context loops.
 
-This skill is the single home for LLM-as-annotation in the plugin. It **absorbs and replaces `scholar-compute` MODULE 7 (LLM-powered analysis) and MODULE 1 Step 8 (design-supervised learning / predicted-label regression)**; it is **fully self-contained** (`assets/` + `references/` + a bundled logging/safety fallback) and does not depend on `scholar-compute`. Its sibling is `scholar-simulate` (LLM as *respondent/generator*); this skill is LLM as *annotator/measurer*.
+This skill is the single home for **LLM-as-measurement** in the plugin. It owns the
+*annotation-as-measurement* half of `scholar-compute` MODULE 7 and all of MODULE 1 Step 8
+(design-supervised learning / predicted-label regression); `scholar-compute` Step 1d redirects
+here on annotation intent, and MODULE 7 retains only the **ad-hoc** half (one-off structured
+extraction, RAG / document QA, inductive grounded-theory loops, prompt-optimization technique).
+The dividing line: an artifact a researcher *reads* stays in MODULE 7; a variable a model
+*consumes* comes here, because only here is there a gate between "we prompted a model" and "we
+have a variable." This skill is **fully self-contained** (`assets/` + `references/` + a bundled
+logging/safety fallback) and does not depend on `scholar-compute`.
+
+**Reached from:** `/scholar-annotate` directly, or via the `scholar-compute` Step 1d redirect.
+Its sibling is `scholar-simulate` (LLM as *respondent/generator*); this skill is LLM as
+*annotator/measurer*.
 
 > **CITATION INTEGRITY RULE:** Never fabricate any citation, author, title, year, journal, or DOI. Citation work is delegated to `/scholar-citation`. Unverified claims are flagged `[CITATION NEEDED]`.
 
 > **CARDINAL RULE — VALIDATE BEFORE YOU SCALE.** LLM labels are a measurement, and every measurement needs a reliability estimate. You MUST NOT annotate the full corpus (MODE 8) until the annotator passes the hard gate in **MODE 7 (validate)**: agreement with a human/gold set of **Cohen κ ≥ 0.70** (per-class F1 reported), plus the four Lin & Zhang (2025) epistemic-risk checks (validity, reliability, replicability, transparency). p-values are irrelevant here; reliability is the currency.
+
+> **COMPANION RULE — A MEASUREMENT IS NOT A NUMBER.** It is a number plus the question that produced it. The κ gate certifies an annotator *for the task as prompted*; it cannot detect that the prompt asked a broader or narrower question than the model consuming the number needs. Every measurement-derived constant carries the `instrument_id` it was measured under, and every instrument carries an `asked` vs `needed` construct-match verdict. Enforced by `scripts/gates/measurement-instrument-check.sh` at MODE 7; schema and the case that motivates it in `references/construct-match.md`.
 
 > **DATA-TRANSFER RULE.** Sending text to a *cloud* API (OpenAI/Anthropic Batch/async) is an **external data transfer** — it must be a conscious, logged decision (MODE 0 writes an AI-use disclosure). For sensitive / `LOCAL_MODE` / restricted corpora, prefer the **`local`** strategy (on-prem OpenAI-compatible server; data never leaves the machine). Comments / PII / transcripts are **anonymize-first**. See `references/data-safety.md`.
 
@@ -40,7 +54,7 @@ The user has provided: `$ARGUMENTS`
 | `devset`, `dev set`, `sample`, `gold sample`, `stratify`, `annotation sample` | **4 devset** | `references/devset-construction.md` |
 | `annotate-gold`, `label gold`, `dual model`, `claude and gpt`, `inter-coder`, `krippendorff` | **5 annotate-gold** | `references/gold-annotation.md` |
 | `optimize`, `dspy`, `prompt`, `few-shot`, `bootstrap`, `mipro`, `signature` | **6 optimize** | `references/dspy-optimization.md` |
-| `validate`, `validation`, `kappa`, `κ`, `f1`, `reliability`, `gate` | **7 validate** | `references/validation-gate.md` |
+| `validate`, `validation`, `kappa`, `κ`, `f1`, `reliability`, `gate`, `construct match`, `instrument` | **7 validate** | `references/validation-gate.md` + `references/construct-match.md` |
 | `scale`, `annotate all`, `full corpus`, `batch`, `local`, `hpc`, `sbatch`, `serve`, `production` | **8 scale** | `references/scale-engine.md` (+ `references/local-model-scale-lessons.md` for local reasoning models on HPC) |
 | `distill`, `cheap classifier`, `score everything`, `dsl`, `predicted labels` | **9 distill** | `references/distillation.md` (+ `references/local-model-scale-lessons.md` §4) |
 | `report`, `methods`, `write up`, `deliverable`, `disclosure` | **10 report** | `references/reporting-templates.md` |
@@ -111,8 +125,9 @@ Turn the dev sample into gold. Two sources, combine as available: (a) **multi-mo
 ### MODE 6 — optimize
 Programmatically optimize the prompt with **DSPy**: a typed `Signature` (metadata → labels), a `ChainOfThought` module (auditable rationale = Lin & Zhang validity), and `BootstrapFewShot`/`MIPRO` compiled against `devset_gold.csv`. Archive the compiled program + a hash. `assets/dspy_optimize.py`; `references/dspy-optimization.md`.
 
-### MODE 7 — validate **(HARD GATE)**
-`python3 assets/annotate_engine.py validate --pred … --gold … --gate 0.70`. Reports Cohen κ + per-class F1 (LLM-vs-gold), confusion, and the four Lin & Zhang risk checks. **κ < 0.70 blocks MODE 8** — iterate the codebook/few-shot instead. `references/validation-gate.md`.
+### MODE 7 — validate **(HARD GATE — two blocking checks)**
+**(a) Reliability.** `python3 assets/annotate_engine.py validate --pred … --gold … --gate 0.70 --manifest <run.json>`. Reports Cohen κ + per-class F1 (LLM-vs-gold), confusion, **coverage**, and the four Lin & Zhang risk checks. Gold is the denominator: documents the annotator *failed* on stay in it, each excluded row naming the branch that excluded it. **Blocks MODE 8** on κ < 0.70 on *any* gated field, coverage < 0.95, an **undefined** κ, or absent instrument provenance.
+**(b) Construct-match.** `bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/measurement-instrument-check.sh" "$PROJ"`. The κ gate validates the annotator *for the task as prompted*; it structurally cannot detect that the prompt is broader or narrower than the model consuming the number needs. Declare each measurement-derived constant and its instrument, and record `asked` vs `needed` with a verdict. `references/construct-match.md` + `references/validation-gate.md`.
 
 ### MODE 8 — scale (engine)
 Annotate the full corpus via the chosen strategy — `batch` (managed, 50% cheaper), `async` (concurrent live), or `local` (OpenAI-compatible on-prem server; **SLURM job-array sharding** for HPC). Resumable, sharded, checkpointed, with a cost ledger. This is the only mode that processes the whole corpus, and only after MODE 7 passes. `references/scale-engine.md` + `assets/hpc/`.
@@ -137,7 +152,9 @@ Two files (version-checked): **File 1** internal log (`scholar-annotate-log-[tas
 - [ ] Dev/gold set stratified; rare class over-sampled for few-shot; representative validation split.
 - [ ] Gold reliability reported (human α and/or inter-model κ) before optimization.
 - [ ] DSPy program compiled + archived (prompt/program hash, temperature=0, model id + date).
-- [ ] **HARD GATE**: LLM-vs-gold κ ≥ 0.70 (per-class F1 reported) BEFORE any full-corpus run.
+- [ ] **HARD GATE (a)**: LLM-vs-gold κ ≥ 0.70 on every gated field, coverage ≥ 0.95 against the *gold* denominator, no undefined κ, per-class F1 reported — BEFORE any full-corpus run.
+- [ ] **HARD GATE (b)**: construct-match recorded (`asked` vs `needed`, verdict `MATCH`) and every measurement-derived constant declared with its `instrument_id`; `measurement-instrument-check.sh` GREEN.
+- [ ] Measurement design parameters (n, strata, seed, stopping rule) declared in `design/measurement-design.json` and stamped on the artifact sidecar — never left to CLI defaults.
 - [ ] Scale run is resumable/sharded/checkpointed; cost ledger recorded.
 - [ ] Distillation (if used) validated vs gold; DSL applied to predicted-label regressions.
 - [ ] Lin & Zhang (2025) four risks assessed; prompts archived verbatim.

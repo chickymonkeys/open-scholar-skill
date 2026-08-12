@@ -239,11 +239,52 @@ case "$PHASE" in
   6|compute|ling)
     # Specialized branch: check branch outputs exist (similar to Phase 5)
     # This phase is conditional — only runs for computational/sociolinguistic methods
-    BRANCH_OUTPUT=$(find "$PROJ" \( -name "*compute*" -o -name "*ling*" \) 2>/dev/null | grep -v "log\|SKILL" | head -1 || true)
+    BRANCH_OUTPUT=$(find "$PROJ" \( -name "*compute*" -o -name "*ling*" -o -name "*annotate*" \) 2>/dev/null | grep -v "log\|SKILL" | head -1 || true)
     if [ -z "$BRANCH_OUTPUT" ]; then
       REPORT="${REPORT}\n  WARN: No branch-specific output found (Phase 6 may have been skipped if method is quantitative)"
       WARNINGS=$((WARNINGS + 1))
     fi
+    # Measurement-instrument binding. A kappa gate certifies an annotator *for the task as
+    # prompted*; it structurally cannot detect that the prompt asked a broader or narrower
+    # question than the consuming model needs. INERT (rc 3) on any project that never used
+    # the measurement path, so this is silent for non-annotate branches.
+    MIC_GATE="$(dirname "$0")/measurement-instrument-check.sh"
+    if [ -f "$MIC_GATE" ]; then
+      # This file runs under `set -euo pipefail`. A command substitution whose command
+      # exits non-zero aborts the script BEFORE `$?` can be read — so the gate must be
+      # called with -e disabled, or a RED gate silently kills the whole verification
+      # instead of reporting. (Observed: header printed, no report, rc=1.)
+      set +e
+      MIC_OUT=$(bash "$MIC_GATE" "$PROJ" 2>&1)
+      MIC_RC=$?
+      set -e
+      # `|| true` on every substitution: with `set -e` restored, a gate that exits without
+      # a REASON= line (e.g. after a traceback) makes `grep` return 1, and the assignment
+      # itself aborts phase-verify.sh BEFORE the issue is recorded. Reported by external
+      # audit as an incomplete fix to the first set -e abort.
+      case "$MIC_RC" in
+        0) : ;;  # GREEN
+        1)
+          MIC_WHY=$(printf '%s\n' "$MIC_OUT" | grep -E '^REASON=' | head -1 | sed 's/REASON=//' || true)
+          REPORT="${REPORT}\n  FAIL: measurement-instrument-check RED — ${MIC_WHY:-see gate output}"
+          ISSUES=$((ISSUES + 1)) ;;
+        2)
+          MIC_WHY=$(printf '%s\n' "$MIC_OUT" | grep -E '^REASON=' | head -1 | sed 's/REASON=//' || true)
+          REPORT="${REPORT}\n  WARN: measurement-instrument-check YELLOW — ${MIC_WHY:-see gate output}"
+          WARNINGS=$((WARNINGS + 1)) ;;
+        3) : ;; # INERT — measurement path unused; skip silently
+        *)
+          REPORT="${REPORT}\n  WARN: measurement-instrument-check exited with unexpected code $MIC_RC"
+          WARNINGS=$((WARNINGS + 1)) ;;
+      esac
+      unset MIC_OUT MIC_RC MIC_WHY
+    else
+      # A missing gate is "not assessed", not "fine". Without this branch an absent gate
+      # file silently reads as normal continuation.
+      REPORT="${REPORT}\n  WARN: measurement-instrument-check.sh not found at $MIC_GATE — instrument binding unverified (not a pass)"
+      WARNINGS=$((WARNINGS + 1))
+    fi
+    unset MIC_GATE
     ;;
   7|draft|write)
     # Drafting: check manuscript draft exists with minimum word count

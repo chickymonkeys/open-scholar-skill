@@ -1,5 +1,36 @@
 ## MODULE 7: LLM-Powered Analysis Workflows
 
+> ## ROUTER — annotation-as-measurement belongs to `/scholar-annotate`
+>
+> **If the deliverable is a validated variable over a corpus** — a class, frame, stance, score,
+> or relevance flag that will be counted, modelled, or reported — **stop and invoke
+> `/scholar-annotate`.** That skill owns LLM-as-measurement end to end: codebook → dev/gold set
+> → DSPy optimization → the **hard κ + coverage + construct-match gate (MODE 7)** → Batch/local/
+> HPC scale-out → distillation. It ships an execution engine (`assets/annotate_engine.py`), not
+> in-context snippets, and it is the only path with a mechanical gate between "we prompted a
+> model" and "we have a variable."
+>
+> | You want | Go to |
+> |---|---|
+> | a labelled variable at corpus scale, with a reliability estimate | **`/scholar-annotate`** |
+> | framing / stance / relevance coding to be analysed downstream | **`/scholar-annotate`** |
+> | LLM labels feeding a regression (DSL / predicted-label correction) | **`/scholar-annotate`** MODE 9 |
+> | interpretive, small-N, human-led qualitative coding | `/scholar-qual` |
+> | LLM as *respondent* (silicon sampling, generative ABM) | `/scholar-simulate` |
+> | ad-hoc extraction, RAG, document QA, an inductive discovery loop | **stay here** |
+>
+> **Why the split is enforced.** In the 2026-08 large-corpus annotation run, a
+> measurement produced outside the annotate gate hard-coded a recall rate of `0.62` measured
+> under a *broader* construct than the consuming model implemented. The correct value was
+> `0.94`. It drove two declared sensitivity arms and a planned manuscript caveat, survived four
+> code-review iterations, and was caught only when an estimator refused a degenerate fit. The
+> gate that would have caught it lives in `/scholar-annotate` MODE 7. Do not reimplement a
+> measurement pipeline here to avoid the gate.
+>
+> What remains in this module below is the **ad-hoc** half: extraction, RAG/document QA,
+> grounded-theory discovery loops, and prompt-optimization technique. Those produce artifacts a
+> researcher reads, not variables a model consumes.
+
 ### Step 1 — Goal and Risk Assessment
 
 Before designing the LLM pipeline, classify the workflow type and apply corresponding safeguards:
