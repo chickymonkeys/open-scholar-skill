@@ -173,6 +173,10 @@ Also include citations carried forward from prior pipeline phases (scholar-lit-r
 
 **HARD RULE: During Steps 2-4 below, ONLY cite references from this Verified Citation Pool or prior-phase carry-forwards. If a claim needs a citation that is NOT in the pool, do NOT guess — use `[CITATION NEEDED: description]` instead.**
 
+### Tier 0c: Read the Evidence Ledger brief (evidence-bearing sections)
+
+The Verified Citation Pool answers "may I cite this reference?"; the Evidence Ledger answers "**what did the source actually say?**". For Introduction/Theory/Discussion, Step 0a-evidence in SKILL.md renders `evidence/evidence-brief-[section].md` from `evidence/claim-anchors.ndjson` (protocol: `_shared/evidence-ledger.md`) — verbatim passages captured by the lit-review skills, with locators and tiers, best evidence first. Read it before composing; drafted claims covered by an anchor must preserve the passage's direction, magnitude, and population; tag those sentences `<!--ev: anchor_id-->`. KG-derived (`kg_paraphrase`) anchors guide which sources to engage — quote-level fidelity comes only from `source_verbatim` anchors.
+
 #### Build Table and Figure Artifact Registry (MANDATORY — Run Before Drafting)
 
 Scan the output directories for tables and figures produced by prior pipeline phases (`scholar-eda`, `scholar-analyze`, `scholar-compute`). This registry drives in-text references and the end-of-manuscript Tables & Figures section.

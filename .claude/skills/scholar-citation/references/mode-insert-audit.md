@@ -42,6 +42,8 @@ fi
 
 Before searching for any claim, check the cache first. If a claim's exact text (or a normalized form) already has a resolved citation in the cache, skip the search and use the cached result.
 
+> The cache stores `{claim_text → citation_key}` for **resume/retry** only. The authoritative record of *why* a citation fits a claim is the Evidence Ledger anchor captured at I-4 (`${PROJ}/evidence/claim-anchors.ndjson` — `_shared/evidence-ledger.md`); a cache hit does not exempt the claim from having an anchor.
+
 ---
 
 ### Round Structure (repeat up to 3 times)
@@ -147,6 +149,13 @@ For each claim, select the best-matching source(s):
 - **Recency:** Prefer seminal + recent (within 5 years) over only-old citations
 - **Fit:** Source must actually support the specific claim
 - **Parsimony:** One strong citation > three weak ones for undisputed facts
+
+**Evidence anchor at insertion (MANDATORY for empirical claims — `_shared/evidence-ledger.md`):** the "Fit" judgment above must leave a record of what it was based on. Before finalizing a citation on an empirical claim (a claim asserting a finding, direction, magnitude, or population — not a pointer/method cite), capture ONE anchor via `ev_capture` (`EV_PRODUCED_BY=scholar-citation`), **tier-honestly** with whatever evidence is already in context:
+- an existing ledger anchor for this cite_key covers the claim → reuse it (tag the sentence with its id; no new record);
+- KG `findings[]` text supported the fit judgment → `EV_FORM=kg_paraphrase`, `EV_TIER=T0_kg_fulltext`;
+- an abstract/snippet from the search APIs → `EV_FORM=abstract_verbatim`, `EV_TIER=T3_abstract`, quote the deciding sentence;
+- metadata only (title/venue match, no abstract read) → `EV_FORM=metadata_only`, `EV_QUOTE` empty, `EV_TIER=T3_abstract` or `T4_none` — this makes "cited on metadata alone" **visible**; the Phase-8 gate reports the metadata-only rate per producer, and the faithfulness audit escalates these first.
+Do NOT fetch full text just to anchor — escalation is Step V-3.5 / Phase 8's job. Tag the claim's sentence `<!--ev: anchor_id-->` (grammar: evidence-ledger.md §4).
 
 Insert citations using target style format. For numbered styles, assign numbers in order of first appearance and track a running list.
 

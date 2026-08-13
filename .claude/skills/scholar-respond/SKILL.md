@@ -377,6 +377,8 @@ for item in data.get('message',{}).get('items',[]):
 
 If found in local library, use the stored metadata. If found via CrossRef, note the DOI. If not found via either, use WebSearch.
 
+**Evidence Ledger (MANDATORY for citation work in an R&R):** load `.claude/skills/_shared/evidence-ledger.md` and capture ONE tier-honest anchor per NEWLY added citation at the moment you finalize the claim it supports (`EV_PRODUCED_BY=scholar-respond`; library PDF read → `source_verbatim`; abstract → `abstract_verbatim`; metadata-only match → visible `metadata_only`) — R&R citations added under time pressure are the highest mischaracterization risk. Inherited `<!--ev: anchor_id-->` bindings travel WITH their sentence through revisions — carry the tag into revised text attached to the same claim; if a revision changes an audited claim's direction, magnitude, population, or causal strength, note `re-adjudicate` in the revision diff. The response/revision log MUST include the row `Evidence anchors: N created / M reused`.
+
 ### Step 4: Produce the Response Triage Dashboard
 
 Before drafting the letter, present a structured overview:
@@ -685,7 +687,7 @@ bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-claims.sh" "[revised_manuscri
 **Protocol — every new analysis dispatched from an R&R response must:**
 
 1. Generate the analysis script under `${PROJ}/scripts/rr-NN-[description].R`, do NOT execute yet.
-2. Run `scholar-code-review` in `statistics` + `data-handling` + `correctness` mode against the new script, using the Phase 3 design blueprint (if available) or the reviewer's specification as compliance reference. Apply the **Code-Review Fix Loop** from `cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/code-review-fix-loop.md"`. CRITICAL halts.
+2. Run `scholar-code-review` in `statistics` + `data-handling` + `correctness` mode against the new script, using the Phase 3 design blueprint (if available) or the reviewer's specification as compliance reference. **Save the consolidated report + reviewed-scripts manifest (scholar-code-review Steps 5a/5a.5) BEFORE executing** — the review must be hash-bound to the exact `rr-NN-*.R` bytes that run (`pre-exec-review-check.sh` verifiable); a post-review edit re-enters Step 6 re-review. Apply the **Code-Review Fix Loop** from `cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/code-review-fix-loop.md"`. CRITICAL halts.
 3. Load the registry contract and adjudication rule:
    ```bash
    cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/results-registry-contract.md"

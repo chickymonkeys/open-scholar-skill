@@ -83,6 +83,8 @@ This also cross-checks the `agentId` against `logs/dispatch-manifest.jsonl` (the
 
 The trace is a durable, shareable artifact. `observation` and `reasoning` carry **aggregate metrics, verdicts, counts, and file references ONLY — never raw data rows, quotes, or PII** (names, emails, IDs, DOBs, addresses). Under `LOCAL_MODE`, log derived aggregates, never row-level values. `emit-trace.sh` warns on obvious email/SSN-like values, but the discipline is yours: describe *that* you observed something and its shape, not the sensitive value itself.
 
+**Scope clarification (Evidence Ledger):** this no-verbatim-quotes rule applies to *traces* (`logs/trace-*.ndjson`). The Evidence Ledger artifacts under `${PROJ}/evidence/` (`claim-anchors.ndjson`, `claim-faithfulness-audit-*.ndjson`, dossiers, briefs) are the **sanctioned home for verbatim source passages** — quote-capped, replication-excluded, and governed by `_shared/evidence-ledger.md` §6. A trace step that captures an anchor references it by `anchor_id` in `refs[]`; it never inlines the quote. Do not flag `evidence/*.ndjson` as a trace-privacy violation.
+
 ---
 
 ## Notes

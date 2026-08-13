@@ -38,7 +38,7 @@ Generate the requested section with:
 2. **`[CITATION NEEDED: description]`** markers where citations cannot be verified — these are inputs for `/scholar-citation` MODE 5 (VERIFY) and MODE 1 (INSERT). **NEVER insert an unverified citation — always use the marker instead.**
 3. **Word count** and comparison to the journal target from the table in Step 1
 4. If in REVISE mode: append a **Change Summary** listing all substantive edits
-5. **Citation source log**: for every citation inserted, note the source (local reference library / CrossRef / prior phase / seminal work). Any citation without a verification source must be converted to `[CITATION NEEDED]`.
+5. **Citation source log**: for every citation inserted, note the source (local reference library / CrossRef / prior phase / seminal work). Any citation without a verification source must be converted to `[CITATION NEEDED]`. This log is no longer context-only: for evidence-bearing sections it persists as Evidence Ledger anchors (`_shared/evidence-ledger.md`) — each inserted citation on an empirical claim either reuses an existing anchor (tagged `<!--ev: anchor_id-->` per Step 0a-evidence rule 3) or records a new one via `ev_capture`, and the counts feed the writing log's REQUIRED `Evidence anchors: N created / M reused` row.
 
 ---
 

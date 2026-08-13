@@ -196,9 +196,11 @@ For each flagged issue, check how many agents independently flagged it:
 | 1 | ¶4 | "social capital facilitates..." echoes Putnam (2000) verbatim | Plagiarism | OA+CV+AA | Rephrased |
 
 ### Majority Issues (2/3)
-| # | Paragraph | Issue | Type | Agents | Action |
-|---|-----------|-------|------|--------|--------|
-| 1 | ¶12 | Zhang (2019) cited as finding negative effect; PDF shows positive | Claim accuracy | CV+AA | Corrected direction |
+| # | Paragraph | Issue | Type | Agents | Evidence quote (verbatim, with locator) | Action |
+|---|-----------|-------|------|--------|------------------------------------------|--------|
+| 1 | ¶12 | Zhang (2019) cited as finding negative effect; PDF shows positive | Claim accuracy | CV+AA | "we find a positive and significant association" (p. 14) | Corrected direction |
+
+> **Evidence-quote column (REQUIRED for Claim-accuracy rows):** a verdict without the passage that produced it cannot be re-adjudicated later. Quote the deciding source passage verbatim (≤60 words) with its locator in every claim-accuracy row, and capture it as an Evidence Ledger anchor in the same step (`_shared/evidence-ledger.md` — one retrieval serves both protocols).
 
 ### Single-Agent Flags (1/3)
 | # | Paragraph | Issue | Type | Agent | Disposition |

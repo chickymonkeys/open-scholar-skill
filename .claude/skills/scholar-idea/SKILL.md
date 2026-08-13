@@ -187,6 +187,8 @@ Run 2-3 targeted WebSearch queries per under-covered angle using these templates
 
 > If the search returns no relevant prior work, note this and flag whether the question may be outside current literature or whether search terms need refinement.
 
+**Evidence Ledger (MANDATORY):** load `.claude/skills/_shared/evidence-ledger.md` and capture anchors ONLY for sources behind finalized novelty/gap verdicts (`EV_PRODUCED_BY=scholar-idea`, `claim_kind: gap_claim`): each SATURATED/INCREMENTAL/GAP rating that names specific prior papers gets one tier-honest anchor per named paper (the abstract/snippet that grounded the rating — `abstract_verbatim`/`T3_abstract` is legal). Search hits that never ground a rating get NO anchors (two-stage rule — anchoring every hit would bloat the ledger). The output's log MUST include the row `Evidence anchors: N created / M reused`.
+
 ### Step 4: Formalize Research Questions
 
 Using both the candidate angles (Step 2) and the literature scan (Step 3), select the 2-3 angles with the strongest novelty profile and generate formal research questions:

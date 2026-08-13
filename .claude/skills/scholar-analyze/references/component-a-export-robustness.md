@@ -1,5 +1,7 @@
 ### A6 — Export Regression Tables
 
+> **DO NOT EXECUTE THESE BLOCKS INLINE.** Per SKILL.md sub-stage A2.5, export (A6, → `scripts/07-export-tables.R`) and robustness (A7, → `scripts/08-robustness.R`) code belongs inside the drafted-and-reviewed scripts — these blocks operate on model objects that only exist inside those script runs.
+
 **modelsummary (primary — HTML + LaTeX + docx):**
 ```r
 library(modelsummary)

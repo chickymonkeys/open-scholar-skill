@@ -115,6 +115,8 @@ eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^`
 scholar_search "[THEORY TOPIC]" 20 keyword
 ```
 
+**Evidence Ledger (MANDATORY):** load `.claude/skills/_shared/evidence-ledger.md` and capture anchors at claim finalization per its §1–§2 (`EV_PRODUCED_BY=scholar-conceptual`). Qualifying claims/read sites: theory attributions ("X proposed/argues...") grounded in KG results (`kg_paraphrase`) or library sources found above, and empirical findings the new theory must account for (`claim_kind: theory_attribution` / `map_cell`). The theory output's log MUST include the row `Evidence anchors: N created / M reused`.
+
 Identify:
 - **Existing theories** that address parts of the phenomenon
 - **Empirical findings** that any theory must account for

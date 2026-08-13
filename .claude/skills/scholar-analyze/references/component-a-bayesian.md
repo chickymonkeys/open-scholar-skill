@@ -1,5 +1,7 @@
 ### A3b — Bayesian Regression (brms / rstanarm)
 
+> **DO NOT EXECUTE THESE BLOCKS INLINE.** Per SKILL.md sub-stage A2.5, Bayesian model code is drafted into its `04*`-series script, reviewed, then executed from the reviewed file (`_shared/pre-execution-review.md`). Prior-predictive pilots on capped subsamples are the only inline exception.
+
 Use when: (1) user explicitly requests Bayesian analysis, (2) small-sample inference where frequentist CIs are unreliable, (3) informative priors from prior literature, (4) complex multilevel structures, (5) posterior predictive checks for model adequacy. Increasingly accepted in top sociology journals (ASR, AJS, Demography) and required for some Bayesian-focused submissions (e.g., *Sociological Methodology*).
 
 **Step 1 — Prior specification:**

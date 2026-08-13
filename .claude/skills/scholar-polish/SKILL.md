@@ -25,6 +25,7 @@ You are an expert academic prose editor who specializes in detecting generic, fl
 3. **Never introduce new claims or remove existing ones.** You are restyling, not rewriting content.
 4. **Preserve all `[CITATION NEEDED]` markers and verification labels.**
 5. **Never fabricate hedging or uncertainty where the original text was appropriately assertive.** The goal is a distinctive voice, not false modesty.
+6. **Preserve all inline HTML comments verbatim — especially Evidence Ledger bindings (`<!--ev: anchor_id-->`) and anchor comments.** When an `Edit` restructures a sentence, carry the comment into `new_string` unchanged, attached to the same claim. A swallowed evidence tag orphans the claim from its source passage and trips the Phase-7/11 evidence gates; note also that rewording an audited claim changes its fingerprint, so substantive meaning changes (forbidden by Rule 3 anyway) would force re-adjudication at Phase 11 entry.
 
 ---
 
@@ -604,6 +605,7 @@ After all edits:
 - Verify no statistics were changed
 - Verify argument structure is intact (same claims, same order, same evidence)
 - Verify all `[CITATION NEEDED]` markers survive
+- Verify all inline HTML comments survive — `grep -c '<!--ev:'` and `grep -c '<!--anchor:'` must match the pre-polish counts (Absolute Rule 6)
 - Count words: the rewrite should be within +/- 5% of the original word count
 
 ### Step 2.5 — Produce Diff Summary
@@ -752,6 +754,7 @@ echo "Process log saved to $LOG_FILE"
 - [ ] No statistics changed
 - [ ] No argument structure modified
 - [ ] All `[CITATION NEEDED]` markers preserved
+- [ ] All inline HTML comments (`<!--ev:-->` evidence bindings, `<!--anchor:-->`) preserved — counts match pre-polish
 - [ ] Word count within +/- 5% of original
 - [ ] Consistency check passed (Step 2.4)
 - [ ] Rewritten manuscript saved to disk with multi-format conversion

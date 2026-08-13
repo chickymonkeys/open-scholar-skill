@@ -53,7 +53,18 @@ Parse:
 | `reproducibility`, `replication`      | → Agent 4 only (reproducibility)                 |
 | `style`, `quality`, `ai-patterns`     | → Agent 5 only (style & AI anti-patterns)        |
 | `data-handling`, `variables`, `recode` | → Agent 6 only (data handling & variable construction) |
+| `pre-execution`, `pre_execution_planned`, `planned` | → Planned-script mode (see below): agent set per caller (default all 6; pre-exec protocol callers name their subset) |
 | (no mode keyword)                      | → All 6 agents                                   |
+
+### Planned-Script (Pre-Execution) Mode
+
+Reviews scripts that have **not yet executed** — dispatched by `scholar-auto-research` Phase 6 (`review_engine.mode: pre_execution_planned`, all 6 roles), orchestrated fast-3 callers, and the standalone pre-execution protocol (`_shared/pre-execution-review.md` §3, per-skill subsets + phase tags). Semantics on top of the normal workflow:
+
+- **Never execute anything.** No output-existence cross-referencing (Step 0a items 4–5 read manuscripts/results only if they already exist; planned scripts have produced nothing yet — their absence is not a finding).
+- **Bugs found here are cheap** — the whole point is catching missing clustering / wrong SE / NA-as-0 / tautological outcomes BEFORE execution at scale.
+- **Role-name crosswalk** (scholar-auto-research's contract uses its own labels): `statistical` → `review-code-statistics`, `style_ai_patterns` → `review-code-style`, `data_handling` → `review-code-data-handling`; `correctness`/`robustness`/`reproducibility` map 1:1.
+- The reviewed-script manifest (Step 0c) and dispatch recording (Step 1) are REQUIRED in this mode — `pre-exec-review-check.sh` hash-binds execution to them.
+
 
 ---
 
@@ -190,6 +201,22 @@ SCRIPT INVENTORY
 ...
 ```
 
+### 0c.5. Compute the Reviewed-Script Manifest (hash binding)
+
+Generate a `review_id` (`cr-$(date +%Y%m%d)-<short-slug>`) and compute a SHA-256 per discovered script (`shasum -a 256` / `sha256sum`). These become the **reviewed-scripts manifest** — the machine-readable record of exactly which bytes this review adjudicated:
+
+```json
+{"schema": "code-review-manifest/v1",
+ "review_id": "cr-YYYYMMDD-<slug>",
+ "report": "code-review/code-review-report-YYYY-MM-DD.md",
+ "mode": "<dispatch mode>", "phase_tag": "<caller's phase tag or 'standalone'>", "ts": "ISO-8601",
+ "scripts": [{"path": "scripts/04-main-models.R", "sha256": "<hex64>"}],
+ "out_of_scope": [{"path": "...", "reason": "..."}],
+ "supersedes_review_id": null, "fixed_finding_ids": [], "remaining_blocking_count": 0}
+```
+
+Saved in Step 5 as `${PROJ}/code-review/reviewed-scripts-<review_id>.json`; the same `review_id` appears verbatim in the consolidated report header (`Review ID: <id>`). `scripts/gates/pre-exec-review-check.sh` recomputes these hashes before any reviewed script executes — a script edited after review fails the gate until re-reviewed (Step 6). Scripts deliberately excluded from adjudication (e.g., already-executed EDA context) go in `out_of_scope[]` with a reason.
+
 ### 0d. Build Review Package
 
 Assemble the **CODE REVIEW PACKAGE** that all agents receive:
@@ -298,7 +325,19 @@ cat .claude/agents/review-code-data-handling.md
 - **Variable Construction Completeness Check**: For every variable referenced in analysis scripts (used in subsetting, grouping, decomposition, or modeling), verify it was actually created in a data preparation script. Cross-reference against the data blueprint's variable dictionary. Flag any variable that is referenced but never constructed (e.g., `cohort_gen` used in decomposition but never defined).
 - **Directional Coding Audit**: For every survey item that is recoded or reversed, verify: (1) the code comment correctly describes the original variable's coding, (2) the transformation produces the intended direction (higher = conservative or liberal as specified), (3) the comment does not confuse the variable's meaning with a related concept (e.g., "approve of the ruling banning X" vs. "approve of X"). Flag any item where the comment contradicts the codebook or where the recode direction appears wrong.
 
-**All selected agents MUST be launched simultaneously** (parallel Agent tool calls in a single message).
+**All selected agents MUST be launched simultaneously** (parallel Agent tool calls in a single message) — and **separately**: one Agent tool-use block per reviewer, each returning its own `task_invocation_id`. One combined "review everything" dispatch violates the independent-reviewers contract and is RED-failed by `code-review-coverage-check.sh` (shared-agentId detection).
+
+**Record each dispatch (REQUIRED):** after the Agent calls return, append one row per reviewer to the dispatch manifest so coverage is mechanically verifiable (standalone runs included):
+
+```bash
+_b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"; [ -f "$_b" ] && . "$_b"; unset _b
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-task-dispatch.sh" --proj "$PROJ" \
+  --subagent review-code-<dimension> --purpose "code review (<mode>)" \
+  --phase "<caller's phase tag; standalone default: standalone-code-review>" \
+  --agentId <id-from-the-Agent-tool-result>
+# rc=2 (no manuscript found → null SHA) is acceptable for pre-manuscript projects; the row is still appended.
+```
 
 ---
 
@@ -426,7 +465,11 @@ Display to the user:
 5. **Per-Script Scorecard** (which scripts need the most work)
 6. **Top 3 most impactful issues** with full context
 
-Ask: "Would you like me to save the full code review report, or should I fix the CRITICAL issues first?"
+Then: **save the report + manifest unconditionally (Step 5 — mandatory, not an option)**, and ask:
+
+> "CRITICAL findings need fixing before these results can be trusted. Default path: I apply the fixes, then **re-review is required** (Step 6 — the affected reviewer agents re-adjudicate the fixed scripts; fixes are never self-certified). Proceed with fix-then-re-review, or do you want to handle the fixes yourself first?"
+
+Never present "fix the issues" without the re-review half — an unreviewed fix is the author-validates-own-fix pattern this skill exists to prevent.
 
 ---
 
@@ -467,6 +510,10 @@ Write the consolidated report containing:
 10. Agent 5 Detail: Style & AI Anti-Patterns full report
 11. Agent 6 Detail: Data Handling & Variable Construction full report (including variable lineage map and missing value audit)
 
+### 5a.5. Save the Reviewed-Script Manifest (REQUIRED)
+
+Write the Step 0c.5 manifest to `${PROJ}/code-review/reviewed-scripts-<review_id>.json`, and confirm the consolidated report header carries the matching `Review ID: <review_id>` line. Without this pair, `pre-exec-review-check.sh` (and any orchestrator consumer) treats the scripts as unreviewed.
+
 ### 5b. Save Fix Checklist Separately
 
 Save just the fix checklist to `${OUTPUT_ROOT}/code-review/fix-checklist-$(date +%Y-%m-%d).md`.
@@ -502,6 +549,19 @@ LOGFOOTER
 
 ---
 
+## Step 6: Post-Fix Re-Review (MANDATORY whenever findings are fixed)
+
+Fixes to reviewed scripts — applied by the user, the main context, or the fix loop (`_shared/code-review-fix-loop.md`) — are **never self-certified**. Before the fixed scripts' results are trusted (and before they execute, under the pre-execution protocol):
+
+1. **Re-dispatch the affected reviewers**: every agent whose findings were fixed re-reviews the UPDATED scripts (scoped to the fixed findings + any code the fix touched). Same dispatch rules as Step 1 (separate parallel Agent calls, recorded via `emit-task-dispatch.sh`).
+2. **Log every fix** to `${PROJ}/logs/code-review-fixes-[date].md` (fix-loop row format). Report + fix log are MANDATORY artifacts once any fix is applied — not optional saves.
+3. **Emit a superseding report + manifest**: new `review_id`; manifest sets `supersedes_review_id` (the prior review's id), `fixed_finding_ids`, `remaining_blocking_count`, and hashes the **fixed bytes**. The report header notes `Supersedes: <prior report filename>`.
+4. **Iterate at most twice**: if blocking findings survive 2 fix→re-review cycles, escalate to the user (`${PROJ}/logs/code-review-escalation-[date].md`) — the classification was wrong (should have been ESCALATE) or the fix introduced a new defect.
+
+Enforcement: wherever a gate consumer runs — `pre-exec-review-check.sh` before execution, the scholar-auto-research Phase 6 verifier under orchestration — the supersedes chain, hashes, and verdict are verified mechanically; a stale clean report over edited scripts fails. In a bare advisory session with no subsequent execution, this step is binding on the model like every other step in this file.
+
+---
+
 ## Quality Checklist (Self-Audit Before Completion)
 
 Before presenting results, verify:
@@ -515,7 +575,10 @@ Before presenting results, verify:
 - [ ] Verdict follows the rules in Step 3e
 - [ ] If a design document was found, the statistics agent compared code against it
 - [ ] Code-only discipline held: no agent Read/Grep/Glob'd a data file; unverifiable recodes flagged UNVERIFIABLE, not resolved by reading data
-- [ ] Process log is complete with all 5 steps recorded
+- [ ] Reviewed-scripts manifest saved (`code-review/reviewed-scripts-<review_id>.json`) and `Review ID:` present in the report header
+- [ ] Every reviewer dispatch recorded in `logs/dispatch-manifest.jsonl` (one row per agent, distinct agentIds)
+- [ ] If any finding was fixed: Step 6 re-review ran, superseding report+manifest emitted, fixes logged
+- [ ] Process log is complete with all steps recorded
 
 ---
 
@@ -523,11 +586,19 @@ Before presenting results, verify:
 
 | Skill | Integration Point | Mode | Gate? |
 |-------|-------------------|------|-------|
-| **scholar-analyze** | Post-save recommendation to user | `full` | No — recommendation |
-| **scholar-compute** | Post-save recommendation to user | `full` | No — recommendation |
-| **scholar-eda** | Post-save recommendation to user | `correctness robustness` | No — recommendation |
+| **scholar-analyze** | Sub-stage A2.5 pre-execution review (model-ladder scripts drafted, reviewed, THEN executed); remaining 3 agents post-save recommendation | `pre-execution` fast 3 | Yes — `pre-exec-review-check.sh` blocks execution |
+| **scholar-eda** | Phase 11 handoff review (E-scripts before the pre-analysis memo hands off) | `pre-execution` correctness + data-handling | Yes — `pre-exec-review-check.sh` |
+| **scholar-compute** | MODULE 0.7 pre-scale review (pipeline consolidated to scripts before at-scale run) | `pre-execution` fast 3 | Yes — `pre-exec-review-check.sh` blocks scale execution |
+| **scholar-data** | W4/W6/W7 authored transformation/collection code (cleaning, scrapers, linkage) | `pre-execution` correctness + data-handling | Yes — `pre-exec-review-check.sh` |
+| **scholar-simulate** | Generated downstream analysis scripts (aggregation, AME, ABM, sensitivity) | `pre-execution` statistics + correctness | Yes — `pre-exec-review-check.sh` |
+| **scholar-ling** | Model-fitting L-scripts drafted, reviewed, then executed | `pre-execution` fast 3 | Yes — `pre-exec-review-check.sh` |
+| **scholar-brainstorm** | DATA mode Step 4b.ii.5 (own equivalent gate + artifact schema; documented divergence) | 3 role reviews | Yes — its own severity gate |
+| **scholar-respond** | R&R new-analysis path (`rr-NN-*.R` drafted, reviewed via this skill, then executed) | fast 3 | Yes — CRITICAL halts |
+| **scholar-auto-research** | Phase 6 pre-execution review contract (`review_engine.mode: pre_execution_planned`, all 6 roles — see Planned-Script Mode crosswalk) | `pre_execution_planned` | Yes — vendored verifier |
 | **scholar-replication** | Verification checklist (consumes existing report; recommends running if none exists) | reads report | Checklist item |
 | **scholar-verify** | Complementary: scholar-verify checks output consistency; scholar-code-review checks code correctness | — | Independent |
+
+Standalone protocol reference for the six pre-execution rows: `_shared/pre-execution-review.md` (state sequence, pilot definition, phase tags, receipt row).
 
 ---
 

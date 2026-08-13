@@ -1,4 +1,4 @@
-# Code-Review Fix Loop (shared by 5A.5, 5B-gate, 6-gate)
+# Code-Review Fix Loop (shared by scholar-respond R&R, scholar-auto-research Phase 6, and the standalone pre-execution-review protocol)
 
 When any pre-execution code-review gate returns CRITICAL findings, the orchestrator applies this loop. Goal: auto-fix cheap/unambiguous issues, escalate the rest, leave a full audit trail — never silently bypass.
 
@@ -81,6 +81,9 @@ Then halt the orchestrator with a clear message naming this file.
 ## Invocation (insert at end of each gate)
 
 ```bash
+# Bootstrap SCHOLAR_SKILL_DIR (P2-R) — sources canonical ~/.claude/scholar-skill-bootstrap.sh
+_b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"
+[ -f "$_b" ] && . "$_b"; unset _b
 . "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
 cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/code-review-fix-loop.md"
 # Apply the loop described above against the current gate's CRITICAL list.

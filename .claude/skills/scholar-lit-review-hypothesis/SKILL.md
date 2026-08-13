@@ -78,6 +78,10 @@ Read and follow the Source Integrity Protocol in `.claude/skills/_shared/source-
 - **Claim accuracy**: Every factual claim attributed to a citation must be verified (effect direction, population, method). When Zotero PDFs are available, cross-check claims via pdftotext. Flag unverifiable claims as `[CLAIM UNVERIFIED]`.
 - **Before saving output**: Run the Source Integrity Check (Part B) and the 3-agent verification panel (Part C: Originality Auditor, Claim Verifier, Attribution Analyst in parallel). Cross-validate with agreement matrix. Append panel report to output file.
 
+**Evidence Ledger (MANDATORY):**
+
+Read and follow `.claude/skills/_shared/evidence-ledger.md` (claim-anchor/v1). Whenever a source passage you read — a `rag_search` hit, a `pdftotext` extract, a KG finding, an abstract/snippet — becomes the basis of a finalized output claim (an Established/Contested finding, an effect magnitude, a mechanism-status judgment, a derivation-chain premise, a hypothesis's supporting evidence, an empirical claim in the drafted prose), append ONE anchor via the protocol's `ev_capture` helper at that moment (`EV_PRODUCED_BY=scholar-lit-review-hypothesis`; use `EV_CLAIM_KIND=hypothesis` with `EV_HYP_ID` for derivation-chain rows). Capture is **tier-honest**: anchor with what is already in context (abstract snippets are legal `T3_abstract` anchors; KG text is `kg_paraphrase`; metadata-only is `evidence_quote:null`) — do NOT fetch full text just to anchor; escalation is the faithfulness audit's job. Search hits that never become claims get NO anchors. Outputs: `evidence/claim-anchors.ndjson`, `evidence/claim-inventory.json` + Evidence Dossier (Step 11d), and the required `Evidence anchors: N created / M reused` line in the search log. One retrieval serves both this protocol and Source Integrity Part B.
+
 
 ```bash
 # Build slug from topic (first 4-6 words, lowercased, hyphenated)
@@ -153,7 +157,9 @@ else
 fi
 ```
 
-Use KG results to: (1) identify already-known theories and mechanisms for hypothesis development, (2) find contested findings that motivate hypotheses, (3) avoid re-searching for papers already in the graph. Add KG-found papers to your working bibliography with source tag `knowledge-graph`.
+Use KG results to: (1) identify already-known theories and mechanisms for hypothesis development, (2) find contested findings that motivate hypotheses, (3) avoid re-searching for papers already in the graph. Add KG-found papers to your working bibliography with source tag `knowledge-graph`. KG extraction text is a **prior paraphrase, not a source quote** — if a KG finding becomes the basis of a finalized claim, anchor it as `EV_FORM=kg_paraphrase`, `EV_TIER=T0_kg_fulltext` (evidence-ledger.md §2).
+
+> **Full-text semantic tier — `scholar-rag` (if built).** When the user has a `scholar-rag` index (`/scholar-rag status` shows `embedded > 0`), query it for *full-text passages* from their own library, not just metadata. Prefer the MCP tool `rag_search("<topic>", k=8, hybrid=true)` (available if the scholar-rag MCP server is registered); otherwise the CLI: `"$SCHOLAR_RAG_DIR/.venv/bin/python" <scholar-rag-assets>/query.py "<topic>" -k 8 --hybrid --json`. It returns cited passages with page numbers — the strongest evidence tier for grounding findings and derivation-chain premises. Treat retrieved passages as **leads to verify**, not as citations themselves — every reference still passes the local-library/CrossRef verification tiers. When a retrieved passage becomes the basis of a finalized claim, capture it as an anchor (`ev_capture` with `EV_TOOL=rag_search`, carrying the hit's `doc_id`/`chunk_id`/`text_sha256` — evidence-ledger.md §2). Log rag queries in the search log with source tag `RAG`.
 
 **After KG query — append to search log:**
 ```bash
@@ -260,6 +266,8 @@ if [[ "$REF_SOURCES" == *zotero* ]]; then
   pdftotext "$STORAGE/$PDF_KEY/$PDF_FILE" - | head -300
 fi
 ```
+
+When a passage from this PDF becomes the basis of a finalized claim, capture it in the same turn (`ev_capture` with `EV_TOOL=zotero_pdf`, `EV_TIER=T1_fulltext`, `EV_FORM=source_verbatim`, page in `EV_SOURCE_LOC` — evidence-ledger.md §2).
 
 **After EACH local library query — append to search log immediately:**
 ```bash
@@ -597,6 +605,12 @@ Before saving, verify **every item**. This is the critical gate that prevents th
 - [ ] No "topic sentence pivot" where the theory section abruptly switches to a different concern than what the literature identified as missing
 - [ ] All citations in theory section appeared in search log (no fabricated references)
 - [ ] Competing predictions (Step 9) derive from frameworks identified in the theoretical landscape (Step 5), not introduced for the first time
+
+**Evidence grounding (evidence-ledger.md):**
+- [ ] `evidence/claim-anchors.ndjson` is non-empty — passages were captured at claim finalization, not discarded
+- [ ] Every Established/Contested finding, effect magnitude, and mechanism-status judgment in the Literature Map has ≥1 anchor
+- [ ] Every derivation-chain row's key empirical premise has an anchor (`claim_kind: hypothesis`, `hypothesis_id` set)
+- [ ] Contested findings carry anchors on BOTH stances; KG-derived claims are `kg_paraphrase`, never `source_verbatim`
 - [ ] **Claim verification** — all prose claims attributing findings to cited sources checked against KG/PDF; no `[CLAIM-REVERSED]`, `[CLAIM-MISCHARACTERIZED]`, `[CLAIM-OVERCAUSAL]`, or `[CLAIM-UNSUPPORTED]` markers remain. Run: `bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-claims.sh" "[output_file]"`
 
 **Common failures to check for:**
@@ -970,6 +984,41 @@ Example format:
 > Author, First. Year. "Title of Article." *Journal Name* Volume(Issue):pages.
 > Author, First and Second Author. Year. *Book Title*. City: Publisher.
 ```
+
+### Step 11d: Claim inventory + Evidence Dossier (REQUIRED)
+
+Write `${PROJ}/evidence/claim-inventory.json` with the Write tool — one row per evidence-bearing item in the Literature Map and derivation chain, joining each row to its captured anchors (many-to-many):
+
+```json
+{"schema": "claim-inventory/v1", "rows": [
+  {"row_id": "established-1", "claim_kind": "map_cell",
+   "claim_text": "<the finding statement as it appears in the map>",
+   "anchor_ids": ["autor2013-3f9a1c2e"]},
+  {"row_id": "derivation-h1", "claim_kind": "hypothesis",
+   "claim_text": "<the key empirical premise behind H1>",
+   "anchor_ids": ["card2020-9c01ab2f"]}
+]}
+```
+
+Row-id convention: `established-N`, `contested-N`, `mechanism-N`, `gap-N`, `derivation-hN`. Cover every Established/Contested finding, judged mechanism, named-prior gap, and derivation-chain row.
+
+Then render the Evidence Dossier and run the coverage gate; append the required evidence line to the search log:
+
+```bash
+_b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"
+[ -f "$_b" ] && . "$_b"; unset _b
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "${PROJ}/evidence" "evidence-dossier-[slug]-[YYYY-MM-DD]"
+# Use the printed SAVE_PATH:
+python3 "${SCHOLAR_SKILL_DIR:-.}/scripts/render-evidence-dossier.py" --proj "$PROJ" --out "<SAVE_PATH>" --slug "[slug]"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/evidence-anchor-check.sh" "$PROJ" --phase 2
+cat >> "$SEARCH_LOG" << EOF
+
+Evidence anchors: [N] created / [M] reused
+EOF
+```
+
+The dossier is stamped **UNADJUDICATED** here (verdicts arrive when the `verify-claim-faithfulness` agent audits the claims) — expected. Gate verdicts: GREEN proceed; YELLOW note the advisory in the search log and proceed; RED fix before completing the skill.
 
 **Close Process Log:**
 

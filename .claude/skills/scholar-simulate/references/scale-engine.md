@@ -84,7 +84,7 @@ The checkpoint IS the run state; there is no separate database.
 
 ## Cost ledger + pre-flight estimate
 
-`--dry-run` builds personas, assembles every prompt, writes the request manifest, and prints a **cost estimate + request count** while making **zero API calls**. Always dry-run before a paid batch.
+`--dry-run` builds personas, assembles every prompt, writes the request manifest, and prints a **cost estimate + request count** while making **zero API calls** — and writes `dry-run-receipt.json` (manifest SHA-256 + estimate). **Dry-run is ENFORCED, not advisory:** a paid (`batch`/`async`) run exits 4 unless the receipt matches the exact manifest bytes; editing the manifest requires a fresh dry-run. `local` is exempt; `--override-dry-run <reason>` is the ledger-logged escape (`dry-run-override` event in `cost-ledger.jsonl`).
 
 ```bash
 # Pre-flight: see exactly how many requests and how many dollars BEFORE spending anything.

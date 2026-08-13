@@ -228,7 +228,7 @@ If no causal keyword → proceed directly to Phase 1.
 
 Follow the script version control protocol defined in `.claude/skills/_shared/script-version-check.md`. **NEVER overwrite an existing script.**
 
-After EVERY major EDA code block is executed in Steps 1–7, save the complete script to `output/[slug]/scripts/[NN]-[name].R` (or `.py`). Use the EDA numbering range `E01`–`E09`:
+After EVERY major EDA code block is executed in Phases 1–10, save the complete script to `output/[slug]/scripts/[NN]-[name].R` (or `.py`). Use the EDA numbering range `E01`–`E09` — every phase that runs code has an assigned prefix, so the Phase 11 handoff review covers the full set:
 
 | Step | Script prefix | Example filename |
 |------|--------------|-----------------|
@@ -239,7 +239,9 @@ After EVERY major EDA code block is executed in Steps 1–7, save the complete s
 | Step 5 — Bivariate | `E05` | `${OUTPUT_ROOT}/scripts/E05-bivariate.R` |
 | Step 6 — Multicollinearity | `E06` | `${OUTPUT_ROOT}/scripts/E06-collinearity.R` |
 | Step 6b — Measurement Validation | `E06b` | `${OUTPUT_ROOT}/scripts/E06b-measurement-validation.R` |
-| Step 7 — Table 1 | `E07` | `${OUTPUT_ROOT}/scripts/E07-table1.R` |
+| Phases 7 / 8 / 8b / 8c — Panel checks, outliers, time-series diagnostics, distribution tests | `E08` | `${OUTPUT_ROOT}/scripts/E08-diagnostics-outliers.R` |
+| Phase 9 — Memo-supporting computations (if any code ran) | `E09` | `${OUTPUT_ROOT}/scripts/E09-preanalysis-checks.R` |
+| Phase 10 — Table 1 | `E07` | `${OUTPUT_ROOT}/scripts/E07-table1.R` |
 
 **Version-check before EVERY script save** — run this Bash block before the Write tool call:
 ```bash
@@ -1051,6 +1053,30 @@ Prompt:
 
 ---
 
+## Phase 11: Handoff Review (MANDATORY)
+
+EDA runs interactively, but its E-scripts encode the decisions downstream analysis inherits — sample construction (E02) and missing-data handling (E03) are classic silent-miscoding sites. Before the Phase 9 pre-analysis memo and Table 1 hand off (to `/scholar-analyze` or the user), the E-script set passes independent review. Protocol: `_shared/pre-execution-review.md` (handoff variant: the scripts already executed; the review hash-binds and adjudicates their CURRENT bytes before their outputs are trusted downstream). Phase tag `pre-exec-eda`.
+
+1. **Review.** Load and execute `scholar-code-review` in pre-execution mode with the `correctness` + `data-handling` pair (2 SEPARATE parallel Agent dispatches, each recorded via `emit-task-dispatch.sh --phase pre-exec-eda`), passing the codebook/data dictionary and the pre-analysis memo. Scope: all `E01`–`E09` scripts in `${OUTPUT_ROOT}/scripts/`; non-E scripts present in the directory go in the manifest's `out_of_scope[]`.
+2. **Fix loop** on CRITICAL findings: `_shared/code-review-fix-loop.md` (max 2 iterations; re-review per scholar-code-review Step 6). A fixed E-script must be RE-EXECUTED to regenerate its outputs, and any pre-analysis-memo decision that rested on the defective output is revisited before handoff.
+3. **Gate:**
+
+```bash
+_b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"; [ -f "$_b" ] && . "$_b"; unset _b
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
+  --required=fast --phase pre-exec-eda \
+  || { echo "HALT: Phase 11 handoff review failed — fix + re-review before handing the pre-analysis memo downstream."; exit 1; }
+```
+
+(The delegated coverage runs `--required=fast`; the `statistics` seat is satisfied by an `[EXCUSED: descriptive-only EDA, no models fitted] review-code-statistics` annotation in the report — or dispatch it too if the EDA fitted anything.)
+
+4. **Receipt (REQUIRED):** append to the Phase 9 pre-analysis memo AND the process trace: `Pre-execution review (handoff): report <path> · review_id <id> · E-scripts N hashed · gate GREEN`.
+
+**Skip:** `--skip-preexec-review` (standalone only) — skip logged in the trace and justified in the memo's limitations note. Under scholar-auto-research orchestration this phase is superseded by Phase 6 — do not double-review.
+
+---
+
 ## Save Output
 
 After completing all phases, save a summary document using the Write tool.
@@ -1171,7 +1197,8 @@ Confirm saved file path to user after Write tool completes.
 - [ ] Outlier/influential observations checked; exclusion decisions documented
 - [ ] Pre-analysis decisions memo written and date-stamped
 - [ ] Table 1 produced with gtsummary + saved as HTML/docx/TeX
-- [ ] All EDA scripts saved to `output/[slug]/scripts/E01-*.R` through `E07-*.R`
+- [ ] All EDA scripts saved to `output/[slug]/scripts/E01-*.R` through `E09-*.R` (every code-running phase has its prefix)
+- [ ] **Phase 11 handoff review**: correctness + data-handling agents adjudicated the E-scripts; `pre-exec-review-check.sh` GREEN; receipt row in the pre-analysis memo — or `--skip-preexec-review` logged + justified
 - [ ] `output/[slug]/scripts/script-index.md` updated with run order for each script
 - [ ] `output/[slug]/scripts/coding-decisions-log.md` updated with analytic decisions
 - [ ] EDA summary saved to `scholar-eda-[slug]-[date].md`

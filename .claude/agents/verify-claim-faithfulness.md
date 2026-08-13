@@ -129,9 +129,17 @@ Read strategically by sub-claim kind: direction/magnitude → Results & Discussi
 (last ~40%); theory → Introduction (first ~30%); method/population → Methods.
 
 ### Phase 4 — Localize & judge each sub-claim
-Find the passage bearing on each sub-claim (if a write-time anchor sidecar exists
-at `claims/claim-anchors.ndjson`, resolve it; else search the retrieved text for
-the claim's key terms and numbers). Assign per sub-claim:
+Find the passage bearing on each sub-claim. **Fast path — the write-time Evidence
+Ledger** (`${PROJ}/evidence/claim-anchors.ndjson`, claim-anchor/v1 per
+`_shared/evidence-ledger.md`): if the audited sentence carries `<!--ev: id-->`
+tags, resolve those anchor_ids first — the anchor's `evidence_quote`/`source_loc`
+tells you where in the source to look, and its `access_tier`/`evidence_form`
+tells you how strong the write-time evidence was. Record every anchor you
+consulted in the record's `anchor_refs[]` (REQUIRED non-empty when the sentence
+is tagged; otherwise empty with `unmatched_reason`). An anchor is a *lead*, not a
+verdict: `kg_paraphrase` and `metadata_only`/`T3` anchors are exactly the claims
+to escalate to a T0–T2 read first. When no anchor exists, search the retrieved
+text for the claim's key terms and numbers. Assign per sub-claim:
 `SUPPORTED | PARTIAL | UNSUPPORTED | CONTRADICTED | NOT_FOUND | UNVERIFIABLE`,
 each with a verbatim `evidence_quote`, `source_loc`, and `access_tier`.
 
@@ -156,9 +164,23 @@ Set `evidence_retrieved=true` iff any sub-claim reached T0/T1/T2/T3, and
 `access_tier_max` to the strongest tier achieved.
 
 ### Phase 6 — Emit the artifact
-Write one record per claim to `--audit-out`. Example:
+Write one record per (sentence, citation) pair to `--audit-out`. **Every
+adjudicated claim gets a record — including CLAIM-VERIFIED** (a verified claim
+with no on-disk trace is indistinguishable from an unchecked one; positive
+records are what make coverage countable). Two fields beyond the base schema:
+- `anchor_refs[]` — the Evidence Ledger anchor_ids consulted (Phase 4).
+- `claim_fingerprint` — sha256 of the normalized manuscript sentence
+  (lowercase, HTML comments stripped, whitespace collapsed). The Phase-11-entry
+  reconciliation gate re-hashes the canonical draft against these to catch
+  claims rewritten AFTER this audit.
+
+Path convention under orchestration: `--audit-out ${PROJ}/evidence/claim-faithfulness-audit-[YYYY-MM-DD].ndjson`,
+`--write-to ${PROJ}/evidence/verify-claim-faithfulness-[YYYY-MM-DD].md` (the
+`evidence/` bucket, NOT `verify/` — that bucket is Phase-7b-roster-scoped). The
+dispatcher updates `evidence/LATEST-audit.txt` with the audit filename after
+ingest. Example record:
 ```json
-{"schema":"claim-audit-record/v1","claim_id":"c0142","cite_key":"autor2013","manuscript_loc":"drafts/v7.md:218","manuscript_quote":"Trade exposure cut local manufacturing employment by roughly 40 percent (Autor, Dorn, and Hanson 2013).","citation_function":"empirical","sub_claims":[{"kind":"direction","verdict":"SUPPORTED","evidence_quote":"reduces local manufacturing employment","source_loc":"p.2125","access_tier":"T1_fulltext"},{"kind":"magnitude","verdict":"CONTRADICTED","evidence_quote":"about 0.6 percentage points per $1,000 of import exposure","source_loc":"p.2125","access_tier":"T1_fulltext"}],"sentence_verdict":"CLAIM-IMPRECISE","severity":"MED","access_tier_max":"T1_fulltext","evidence_retrieved":true,"confidence":0.86}
+{"schema":"claim-audit-record/v1","claim_id":"c0142","cite_key":"autor2013","manuscript_loc":"drafts/v7.md:218","manuscript_quote":"Trade exposure cut local manufacturing employment by roughly 40 percent (Autor, Dorn, and Hanson 2013).","claim_fingerprint":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","citation_function":"empirical","anchor_refs":["autor2013-3f9a1c2e"],"sub_claims":[{"kind":"direction","verdict":"SUPPORTED","evidence_quote":"reduces local manufacturing employment","source_loc":"p.2125","access_tier":"T1_fulltext"},{"kind":"magnitude","verdict":"CONTRADICTED","evidence_quote":"about 0.6 percentage points per $1,000 of import exposure","source_loc":"p.2125","access_tier":"T1_fulltext"}],"sentence_verdict":"CLAIM-IMPRECISE","severity":"MED","access_tier_max":"T1_fulltext","evidence_retrieved":true,"confidence":0.86}
 ```
 
 ### Phase 7 — Self-validate

@@ -2194,6 +2194,34 @@ if phase_id == "2":
     }.items():
         if source_hashes.get(key) != expected:
             fail("FAIL: Phase 2 lit-theory manifest source_hashes are stale", [f"{key} mismatch"])
+    # Evidence Ledger assertion (evidence-ledger plan 2026-08-12 Wave D2).
+    # Auto-research inherits anchor CAPTURE from the delegated sub-skills
+    # (scholar-lit-review-hypothesis / scholar-write); this assertion makes
+    # the inheritance ENFORCEABLE: when the manifest declares the ledger,
+    # the file must exist and hold at least the claimed record count.
+    # Legacy-tolerant: manifests without the key (pre-feature projects and
+    # fixtures) pass unchanged — same INERT discipline as
+    # evidence-anchor-check.sh.
+    evidence_ledger = manifest.get("evidence_ledger")
+    if evidence_ledger is not None:
+        if not isinstance(evidence_ledger, dict):
+            fail("FAIL: Phase 2 lit-theory manifest evidence_ledger must be an object")
+        ledger_rel = str(evidence_ledger.get("path", "")).strip()
+        claimed_records = evidence_ledger.get("records")
+        ledger_file = (proj / ledger_rel) if ledger_rel else None
+        if not ledger_rel or ledger_file is None or not ledger_file.is_file():
+            fail(
+                "FAIL: Phase 2 evidence_ledger.path must resolve to the project ledger file",
+                [ledger_rel or "<missing>"],
+            )
+        actual_records = sum(
+            1 for line in ledger_file.read_text(errors="ignore").splitlines() if line.strip()
+        )
+        if not isinstance(claimed_records, int) or claimed_records < 1 or actual_records < claimed_records:
+            fail(
+                "FAIL: Phase 2 evidence_ledger.records must be a positive count no greater than the actual ledger lines",
+                [f"claimed={claimed_records} actual={actual_records}"],
+            )
 
 if phase_id == "3":
     blueprint_path = proj / "design" / "design-blueprint.md"

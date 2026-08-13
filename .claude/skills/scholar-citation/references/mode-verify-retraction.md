@@ -208,6 +208,10 @@ pdftotext "$ZOTERO_STORAGE/$PDF_KEY/$PDF_FILE" - | head -300
 
 **Note:** This step does NOT replace metadata verification (Tiers 1–3). It supplements by checking content relevance.
 
+**Evidence Ledger integration (`_shared/evidence-ledger.md`):**
+- **Fast path:** when the manuscript carries `<!--ev: anchor_id-->` tags, resolve them against `${PROJ}/evidence/claim-anchors.ndjson` FIRST — the anchor's `evidence_quote`/`source_loc` tells you where to look, and weak anchors (`kg_paraphrase`, `metadata_only`) mark the claims to check first. Anchors are leads, not verdicts.
+- **Persist every adjudication, including CLAIM-SUPPORTED:** append one `claim-audit-record/v1` line per checked claim to `${PROJ}/evidence/claim-faithfulness-audit-[YYYY-MM-DD].ndjson` (schema: `schema/claim-audit-record.schema.json`; map CLAIM-SUPPORTED→CLAIM-VERIFIED, CLAIM-AMBIGUOUS→CLAIM-IMPRECISE, CLAIM-UNSUPPORTED→CLAIM-UNSUPPORTED only when full text was read, else CLAIM-NOT-CHECKABLE). Without positive records, a checked claim is indistinguishable from an unchecked one. Validate with `bash scripts/gates/check-claim-audit-consistency.sh <audit-file>` and update `${PROJ}/evidence/LATEST-audit.txt`. For a deeper sentence-level audit, dispatch the `verify-claim-faithfulness` agent (it implements the full sub-claim decomposition and tier chain).
+
 ## Step V-4: Unverified Reference Handling
 
 For any reference that FAILS all three tiers:

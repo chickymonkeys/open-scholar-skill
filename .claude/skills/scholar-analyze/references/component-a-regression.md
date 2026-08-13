@@ -1,5 +1,7 @@
 ### A3 — Regression Models
 
+> **DO NOT EXECUTE THESE BLOCKS INLINE.** Under the pre-execution-review protocol (SKILL.md sub-stage A2.5), this module's code is DRAFTED into `scripts/04-main-models.R` (+ `05`/`06` as applicable), reviewed, and then the reviewed files execute directly. Small-subsample pilots per `_shared/pre-execution-review.md` §2 are the only inline exception.
+
 Run a progressive model ladder: M1 (baseline — Y ~ X), M2 (+ controls), M3 (+ interactions or FE).
 
 **OLS with HC3 robust SEs:**

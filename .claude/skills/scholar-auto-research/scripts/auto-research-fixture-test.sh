@@ -900,6 +900,15 @@ with matrix_path.open("w", encoding="utf-8") as f:
 with bib_path.open("w", encoding="utf-8") as f:
     for i in range(1, 32):
         f.write(f"@article{{work{i:02d}, title={{Title {i}}}, author={{Author {i}}}, year={{20{i%20:02d}}}}}\\n")
+# Evidence Ledger assertion fixture (evidence-ledger plan 2026-08-12 D2):
+# a declared evidence_ledger key must validate (path exists, records <= lines).
+(proj / "evidence").mkdir(parents=True, exist_ok=True)
+(proj / "evidence/claim-anchors.ndjson").write_text(
+    '{"schema":"claim-anchor/v1","anchor_id":"work01-0a1b2c3d","cite_key":"work01",'
+    '"claim_kind":"map_cell","stance":"supports","evidence_quote":"fixture passage",'
+    '"evidence_form":"abstract_verbatim","access_tier":"T3_abstract",'
+    '"produced_by":"scholar-lit-review-hypothesis","ts":"2026-08-12T00:00:00Z"}\n'
+)
 manifest = {
     "verdict": "PASS",
     "source_phase": "2",
@@ -917,11 +926,27 @@ manifest = {
         "search_log": "literature/search-log.md",
         "review_protocol": "literature/review-protocol.json"
     },
+    "evidence_ledger": {"path": "evidence/claim-anchors.ndjson", "records": 1},
     "ready_for_phase_3": True
 }
 (proj / "literature/lit-theory-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 PY
 bash "$SCRIPT_DIR/auto-research-verify.sh" 2 "$LIT_PROJ" >/dev/null
+
+# Negative fixture: evidence_ledger claiming more records than the file has → FAIL
+BAD_EVIDENCE_PROJ="$TMP/bad-evidence-project"
+cp -R "$LIT_PROJ" "$BAD_EVIDENCE_PROJ"
+python3 - "$BAD_EVIDENCE_PROJ/literature/lit-theory-manifest.json" <<'PY'
+import json, sys
+p = sys.argv[1]
+m = json.load(open(p))
+m["evidence_ledger"]["records"] = 99
+open(p, "w").write(json.dumps(m, indent=2, sort_keys=True) + "\n")
+PY
+if bash "$SCRIPT_DIR/auto-research-verify.sh" 2 "$BAD_EVIDENCE_PROJ" >/dev/null 2>&1; then
+  echo "FAIL: phase 2 verifier accepted an evidence_ledger claiming more records than the ledger holds"
+  exit 1
+fi
 
 BAD_LIT_ENGINE_PROJ="$TMP/bad-lit-engine-project"
 cp -R "$LIT_PROJ" "$BAD_LIT_ENGINE_PROJ"

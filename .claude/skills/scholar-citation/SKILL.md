@@ -629,6 +629,11 @@ Path: `output/[slug]/citations/scholar-citation-[slug]-[date]-reporting-gaps.md`
 
 Contents: Checklist of fields requiring author input to complete the Reporting Summary.
 
+**Evidence outputs (MODE 1 INSERT + MODE 5 VERIFY / MODE 4 FULL-REBUILD — `_shared/evidence-ledger.md`):**
+- `output/[slug]/evidence/claim-anchors.ndjson` — INSERT appends tier-honest anchors at citation insertion (mode-insert-audit.md I-4); claim-anchor/v1.
+- `output/[slug]/evidence/claim-faithfulness-audit-[date].ndjson` + `evidence/verify-claim-faithfulness-[date].md` + `evidence/LATEST-audit.txt` — V-3.5 adjudication records for EVERY checked claim incl. CLAIM-VERIFIED (claim-audit-record/v1; validated by `check-claim-audit-consistency.sh`; under scholar-full-paper orchestration the `verify-claim-faithfulness` agent produces these).
+- Re-rendered `evidence/evidence-dossier-[slug]-[date].md` after V-3.5 (verdicts beside write-time passages).
+
 **Close Process Log:**
 
 Run the following to finalize the process log:

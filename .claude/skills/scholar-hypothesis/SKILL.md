@@ -62,6 +62,8 @@ Read and follow the Source Integrity Protocol in `.claude/skills/_shared/source-
 - **Claim accuracy**: Every factual claim attributed to a citation must be verified (effect direction, population, method). When Zotero PDFs are available, cross-check claims via pdftotext. Flag unverifiable claims as `[CLAIM UNVERIFIED]`.
 - **Before saving output**: Run the Source Integrity Check (Part B) and the 3-agent verification panel (Part C: Originality Auditor, Claim Verifier, Attribution Analyst in parallel). Cross-validate with agreement matrix. Append panel report to output file.
 
+**Evidence Ledger (MANDATORY):** load `.claude/skills/_shared/evidence-ledger.md` and capture anchors at claim finalization per its §1–§2 (`EV_PRODUCED_BY=scholar-hypothesis`). Qualifying claims/read sites: theory attributions and mechanism-status judgments grounded in KG results (`kg_paraphrase`), local-library PDFs read during Source Integrity Part B (`source_verbatim` — one retrieval serves both protocols), and each hypothesis's key empirical premise (`claim_kind: hypothesis` with `EV_HYP_ID`). The theory-section writing log MUST include the row `Evidence anchors: N created / M reused`.
+
 
 ### 0b. Route
 

@@ -117,6 +117,40 @@ HALTMSG
 fi
 ```
 
+### 0a-evidence. Auto-Load the Evidence Ledger brief (evidence-bearing sections)
+
+Before drafting Introduction, Theory/Literature, or Discussion, check the project's Evidence Ledger (`_shared/evidence-ledger.md`, claim-anchor/v1) and read the section-scoped Evidence Brief. The lit-review skills capture the verbatim source passages behind every finding, magnitude, and derivation premise; drafting from the anchored passages (instead of from paraphrase memory) is what makes a later faithfulness audit a comparison rather than a reconstruction.
+
+```bash
+# ── Step 0a-evidence: render + locate the section evidence brief ──
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
+EV_LEDGER="$PROJ/evidence/claim-anchors.ndjson"
+if [ -s "$EV_LEDGER" ]; then
+  echo "EV_COUNT=$(wc -l < "$EV_LEDGER" | tr -d ' ')"
+  # [SECTION] = introduction | theory | literature | discussion
+  # kinds: introduction -> gap_claim,magnitude,map_cell,prose_sentence
+  #        theory/literature -> map_cell,theory_attribution,hypothesis,mechanism_status,magnitude,gap_claim
+  #        discussion -> (omit --kinds; all kinds)
+  python3 "${SCHOLAR_SKILL_DIR:-.}/scripts/render-evidence-dossier.py" \
+    --proj "$PROJ" --out "$PROJ/evidence/evidence-brief-[SECTION].md" \
+    --brief --section "[SECTION]" --kinds "[KINDS]" \
+    && echo "EV_BRIEF=$PROJ/evidence/evidence-brief-[SECTION].md"
+else
+  echo "WARN: No Evidence Ledger — literature claims will rest on the Verified Citation Pool only"
+fi
+```
+
+**Drafting contract (BINDING when the brief renders).**
+
+1. **Read the brief** with the Read tool BEFORE composing prose for this section.
+2. **Stay faithful to anchored passages**: any drafted claim that an anchor covers must preserve the passage's direction, magnitude, and population. If your sentence needs to say more than the anchored evidence supports, weaken the sentence — do not stretch the evidence.
+3. **Tag evidence-bearing sentences** with `<!--ev: anchor_id-->` (grammar in evidence-ledger.md §4) immediately after the sentence, using only anchors whose `cite_key` matches a citation in that sentence.
+4. **Prefer the strongest evidence**: when several anchors support one claim, cite the source whose anchor is `source_verbatim`/`T1_fulltext` over abstract- or metadata-only anchors (the brief is sorted best-first).
+5. **New passages read during drafting**: capture them in the same turn via `ev_capture` (`EV_PRODUCED_BY=scholar-write`; helper block in `_shared/evidence-ledger.md` §5). A claim with no anchor and no retrievable passage takes `[CITATION NEEDED: ...]` — never silent confidence.
+6. **Log the required row** in the writing log: `Evidence anchors: N created / M reused`.
+
+When no ledger exists (standalone project), note the WARN in the process log and draft from the Verified Citation Pool as before.
+
 ### 0b. Load Writing Protocol
 
 Load the pre-writing setup (article knowledge base, citation pool, artifact registry):
@@ -338,6 +372,12 @@ This ensures:
 - [CITATION NEEDED: redlining measurement] — Theory ¶2
 - [CITATION NEEDED: activity space measurement] — Methods ¶3
 (List all [CITATION NEEDED] markers from the draft — feed to /scholar-citation)
+
+## Evidence Anchors (Step 0a-evidence — REQUIRED row for evidence-bearing sections)
+Evidence anchors: [N] created / [M] reused
+- Brief read: [evidence/evidence-brief-[section].md | none — degraded mode]
+- Sentences tagged `<!--ev:-->`: [count]
+- Claims left [CITATION NEEDED] for lack of evidence: [count]
 
 ## Tables and Figures (Step 4.7 Audit)
 - **Artifact Registry**: [N tables, N figures] found in output directories

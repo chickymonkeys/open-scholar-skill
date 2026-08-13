@@ -127,6 +127,8 @@ For each of the Top 10, expand with:
 - **Theoretical puzzle** (2-3 sentences: what we don't know and why it matters)
 - **Closest prior work** (1-2 citations from Step 5 with verification labels)
 - **What's new** (1 sentence: what this RQ adds beyond prior work)
+
+> **Evidence Ledger (MANDATORY at this step):** load `.claude/skills/_shared/evidence-ledger.md` and capture ONE tier-honest anchor per finalized "Closest prior work" / gap claim (`EV_PRODUCED_BY=scholar-brainstorm`, `claim_kind: gap_claim`; the abstract/snippet that told you the paper is the closest prior IS the anchor — `abstract_verbatim`/`T3_abstract` is legal; seed-paper passages read via pdftotext in PAPER mode are `source_verbatim`). Search hits that never became a Top-10 claim get NO anchors. Add the row `Evidence anchors: N created / M reused` to the process log — do NOT alter the structured output sections of this contract.
 - **Identification strategy sketch** (1-2 sentences: how you'd estimate this)
 - **Empirical signal** (DATA mode only): [STRONG/MODERATE/WEAK/NULL/UNTESTABLE] — effect size and p from Step 4b
 - **Target journal(s)** (1-2 journals this best fits)

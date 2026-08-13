@@ -42,7 +42,7 @@ Before designing the LLM pipeline, classify the workflow type and apply correspo
 | **Computational grounded theory** | Inductive category discovery | Premature closure; category proliferation | 3-iteration loop; researcher review each cycle |
 | **Document QA / RAG** | Answer questions about a document corpus | Retrieval failures; fabricated citations | Always cite retrieved passage; human audit |
 
-Apply all four Lin & Zhang (2025) epistemic risk checks (from MODULE 1 Step 7) before full deployment: validity, reliability, replicability, transparency.
+Apply all four Lin & Zhang (2025) epistemic risk checks (from MODULE 1 Step 7) before full deployment: validity, reliability, replicability, transparency. "Full deployment" is the MODULE 0.7 boundary — pilot review of ≤50 documents stays inline; the deployment pipeline consolidates to scripts and passes pre-scale review + `pre-exec-review-check.sh` first.
 
 When a hand-written prompt for **multi-step coding** cannot clear the κ ≥ 0.70 gate, do not keep tweaking by hand — treat prompt construction as a scored search (**Step 4b**: APE, OPRO, DSPy, TextGrad) and report the search space, metric, and held-out κ.
 

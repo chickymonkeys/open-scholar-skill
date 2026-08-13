@@ -131,7 +131,7 @@ probs = zero_shot_classify(img_paths, categories)
 predicted = [categories[p] for p in probs.argmax(axis=1)]
 ```
 
-**Required**: Validate on 200-image human-labeled sample; report Cohen's κ before using at scale.
+**Required**: Validate on 200-image human-labeled sample; report Cohen's κ before using at scale. The 200-image validation set is this module's pilot cap — the at-scale run beyond it first passes MODULE 0.7 pre-scale review (consolidate scripts → review → `pre-exec-review-check.sh`).
 
 ---
 

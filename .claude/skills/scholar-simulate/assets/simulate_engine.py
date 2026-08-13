@@ -6,7 +6,7 @@ CLI entrypoint for LLM-powered social simulation at scale. Three subcommands:
   personas  --spec spec.json --n N --out personas.jsonl [--seed 42]
             Sample a persona pool from a real joint distribution (delegates to personas.py).
 
-  run       --manifest run-manifest.json [--dry-run] [--resume]
+  run       --manifest run-manifest.json [--dry-run] [--resume] [--override-dry-run REASON]
             Fan out (condition x persona x item x rep) into model calls, execute via the
             chosen provider/scale-strategy, and checkpoint every response. --dry-run builds
             everything and prints a cost estimate but makes ZERO API calls.
@@ -25,6 +25,7 @@ import os                           # filesystem + environment
 import sys                          # argv / stderr / exit codes
 import json                         # manifest, items, checkpoints, ledger
 import time                         # batch poll sleeps
+import hashlib                      # dry-run receipt: manifest hash binding
 import argparse                     # subcommand parsing
 
 # Make sibling modules importable whether invoked as a script or a module.
@@ -45,6 +46,15 @@ def _load_jsonl(path: str) -> list:
             if line:                                     # ignore blank lines defensively
                 rows.append(json.loads(line))            # parse and collect
     return rows                                          # list of dicts
+
+
+def _sha256_file(path: str) -> str:
+    """SHA-256 of a file's bytes — binds the dry-run receipt to exact manifest content."""
+    h = hashlib.sha256()                                 # streaming hash (manifests are small, but be correct)
+    with open(path, "rb") as f:                          # bytes, not text — identical bytes or no match
+        for chunk in iter(lambda: f.read(65536), b""):   # 64 KiB chunks
+            h.update(chunk)
+    return h.hexdigest()                                 # hex digest for the receipt
 
 
 def build_requests(manifest: dict, personas: list, items_doc: dict) -> list:
@@ -211,8 +221,46 @@ def cmd_run(args) -> int:
                                     "user_preview": r.user[:200]}) + "\n")
         with open(os.path.join(ckpt, "cost-estimate.json"), "w") as f:  # persist the estimate
             json.dump(est, f, indent=2)
+        # Receipt: binds THIS manifest's bytes to the operator-reviewed estimate.
+        # A later paid run requires a receipt whose hash matches its manifest.
+        with open(os.path.join(ckpt, "dry-run-receipt.json"), "w") as f:
+            json.dump({"manifest_sha256": _sha256_file(args.manifest),
+                       "request_count": len(requests),
+                       "est_cost_usd": est.get("est_cost_usd"),
+                       "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, f, indent=2)
         print(f"DRY RUN — wrote {len(requests)} request previews to {req_dump}; no API calls made.")
         return 0                                         # success without spending anything
+
+    # --- dry-run receipt enforcement (pre-execution-review protocol, 2026-08-13) ---
+    # A paid run (batch/async) must be preceded by --dry-run of the SAME manifest:
+    # the receipt proves the operator saw the request count + cost estimate for these
+    # exact manifest bytes. local runs are $0 and exempt. --override-dry-run <reason>
+    # is the deliberate, ledger-logged escape hatch — never the default path.
+    if strategy != "local":
+        receipt_path = os.path.join(ckpt, "dry-run-receipt.json")
+        m_sha = _sha256_file(args.manifest)              # hash of the manifest as passed NOW
+        receipt_ok = False
+        if os.path.exists(receipt_path):
+            try:
+                with open(receipt_path) as f:
+                    receipt_ok = json.load(f).get("manifest_sha256") == m_sha
+            except (json.JSONDecodeError, OSError):
+                receipt_ok = False                       # unreadable receipt = no receipt
+        if not receipt_ok:
+            reason = getattr(args, "override_dry_run", None)
+            if reason:                                   # logged override path
+                with open(ledger_path, "a") as f:        # audit trail in the cost ledger
+                    f.write(json.dumps({"event": "dry-run-override", "reason": reason,
+                                        "manifest_sha256": m_sha,
+                                        "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}) + "\n")
+                print(f"WARN: dry-run receipt missing/stale — OVERRIDE accepted and logged to cost ledger (reason: {reason}).",
+                      file=sys.stderr)
+            else:
+                print("ERROR: no dry-run receipt matching this manifest. Run "
+                      "`run --manifest ... --dry-run` first (zero API calls) and review the "
+                      "cost estimate, or pass --override-dry-run <reason> to log a deliberate skip. "
+                      "No calls made.", file=sys.stderr)
+                return 4                                 # refuse un-previewed paid execution
 
     # --- enforce the cost cap before spending real money ---
     cap = manifest.get("cost_cap_usd")                   # optional hard ceiling
@@ -315,6 +363,8 @@ def main(argv: list) -> int:
     p_run.add_argument("--manifest", required=True)      # the run manifest
     p_run.add_argument("--dry-run", action="store_true") # build + estimate, no API calls
     p_run.add_argument("--resume", action="store_true")  # skip already-completed requests
+    p_run.add_argument("--override-dry-run", default=None, metavar="REASON",
+                       dest="override_dry_run")          # logged escape from the receipt requirement
     p_run.set_defaults(func=cmd_run)
 
     p_val = sub.add_parser("validate", help="score synthetic responses vs a human benchmark")

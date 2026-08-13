@@ -1,5 +1,7 @@
 ## MODULE 2: QUANTITATIVE METHODS
 
+> **DO NOT EXECUTE MODEL-FITTING BLOCKS INLINE.** Per SKILL.md §Pre-Execution Review, model code from this module is DRAFTED into its `L`-script, reviewed (fast 3 agents + `pre-exec-review-check.sh`), and then the reviewed file executes directly (`_shared/pre-execution-review.md`). Capped-subsample pilots are the only inline exception.
+
 ### Step 2a: Variable Rule Analysis (Goldvarb / Varbrul / Rbrul)
 
 Goldvarb/Varbrul/Rbrul is the standard method for quantitative sociolinguistic analysis of linguistic variables.

@@ -790,6 +790,9 @@ merged_rel = llm_labels[llm_labels["id"].isin(subsample_ids)].merge(rerun, on="i
 kappa_rel = cohen_kappa_score(merged_rel["label"], merged_rel["label_run2"])
 print(f"Run-to-run reliability κ = {kappa_rel:.3f}")
 
+# MODULE 0.7 boundary: everything past this point is AT-SCALE — consolidate the
+# pipeline into scripts, pass pre-execution review + pre-exec-review-check.sh
+# (SKILL.md MODULE 0.7) BEFORE the full-corpus run. Pilots above stay inline.
 # Cost estimation before full run
 avg_tokens_in  = 600   # approximate input tokens per document
 avg_tokens_out = 50    # approximate output tokens

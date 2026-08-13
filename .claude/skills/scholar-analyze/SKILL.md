@@ -146,9 +146,34 @@ cat "$SKILL_DIR/component-a-SECTION.md"
 **Always load**: `component-a-core.md` + `component-a-export-robustness.md` + `component-a-verification.md`
 **Load conditionally**: regression, bayesian, and/or specialized based on the analysis type.
 
-After loading and executing Component A, continue with Components B, C, D below.
+**Component A execution is SPLIT by sub-stage A2.5 (below).** A0–A2b (setup, data loading, descriptives/Table 1, MI) execute as loaded. The model ladder A3–A8 does NOT execute inline: its scripts are DRAFTED first, reviewed at A2.5, and then the reviewed files are executed directly. After Component A completes, continue with Components B, C, D below.
 
 ---
+
+## Sub-stage A2.5 — Pre-Execution Review (MANDATORY before A3–A8 execute)
+
+Standalone counterpart of scholar-auto-research's Phase 6 pre-execution review. Protocol: `_shared/pre-execution-review.md` (state sequence `DRAFTED → REVIEWED+HASHED → EXECUTABLE`; pilot exemption §2; phase tag `pre-exec-analyze`). Model bugs are cheap to fix here (edit a script) and expensive after execution (re-run analysis, re-draft, re-verify).
+
+1. **DRAFT the model-ladder scripts (no execution).** After A2/A2b complete, write the planned A3–A8 code to script files using the D1 naming map (`04-main-models`, `05-marginal-effects`, `06-diagnostics`, `07-export-tables`, `08-robustness`, `09*-decomposition/specialized` — as applicable to the design; D1 version-check before each Write). Each script self-contained per D1 (explicit `library()`, data load, `set.seed()`). Do NOT run any model-bearing block inline — including blocks from `component-a-regression.md` / `-bayesian.md` / `-specialized.md` / `-export-robustness.md`.
+2. **Review.** Load and execute `scholar-code-review` in pre-execution mode, fast 3 subset (`statistics data-handling correctness`), passing the design blueprint/codebook. Three SEPARATE parallel Agent dispatches; each recorded via `emit-task-dispatch.sh --phase pre-exec-analyze`. Already-executed A1/A2 scripts (`01-*`, `03-*`) and E-scripts enter the CODE REVIEW PACKAGE as context and are listed in the manifest's `out_of_scope[]`.
+3. **Fix loop** on CRITICAL findings: `_shared/code-review-fix-loop.md` (auto-fix mechanical, escalate design-level, max 2 iterations, re-review after fixes per scholar-code-review Step 6).
+4. **Gate, then execute the reviewed files:**
+
+```bash
+_b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"; [ -f "$_b" ] && . "$_b"; unset _b
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
+  --required=fast --phase pre-exec-analyze \
+  || { echo "HALT: A2.5 gate failed — fix + re-review before executing the model ladder."; exit 1; }
+```
+
+Emit the receipt row immediately before the first model execution: `Pre-execution review: report <path> · review_id <id> · scripts N hashed · gate GREEN`. Then A3–A8 proceed by INVOKING the reviewed files (`Rscript "${OUTPUT_ROOT}/scripts/04-main-models.R"` …) — never by re-typing their code into the conversation. Post-hoc edits to a reviewed script send it back through Step 6 re-review + this gate.
+
+- **Skip:** `--skip-preexec-review` (standalone only) skips steps 2–4; the skip is logged in the trace and MUST be justified in the output's Limitations — mirroring `--skip-premortem`. Under scholar-auto-research orchestration the flag is ignored and Phase 6 supersedes this sub-stage entirely (do not double-review).
+- Mode 5 (pre-mortem) note: A2.5 satisfies `premortem-protocol.md`'s "code-review report must be clean" packet precondition, so standalone Mode 5 is now runnable after A2.5.
+
+---
+
 
 ## COMPONENT B: Data Visualization
 
@@ -948,7 +973,11 @@ IDXEOF
 
 Follow the version control protocol defined in `.claude/skills/_shared/script-version-check.md`. **NEVER overwrite an existing script.** Always version-check before saving.
 
-After each code block is executed (or written as `[CODE-TEMPLATE]`) in steps A1–A8 and B0–B8, save the complete script to `${OUTPUT_ROOT}/scripts/[NN]-[name].[ext]` — but **run the version check first**:
+Save timing differs by step class (pre-execution-review protocol, v5.29.1):
+- **A3–A8 (model ladder): DRAFT-FIRST.** Scripts `04`–`09*` are WRITTEN at sub-stage A2.5 BEFORE execution, reviewed, and then executed from the reviewed files. The save IS the drafting step; post-review edits re-enter Step 6 re-review.
+- **A1–A2b and B0–B8 (loading, descriptives, visualization): archive-after.** After each such code block is executed (or written as `[CODE-TEMPLATE]`), save the complete script.
+
+Either way, save to `${OUTPUT_ROOT}/scripts/[NN]-[name].[ext]` — and **run the version check first**:
 
 ```bash
 # MANDATORY: Run before EVERY script Write tool call
@@ -1087,6 +1116,7 @@ See [coding-decisions-log.md](coding-decisions-log.md) for the full decision rat
 - [ ] Output directories created (`output/[slug]/tables/`, `output/[slug]/figures/`, `output/[slug]/scripts/`)
 - [ ] Data loaded successfully (file / inline / online fetch confirmed)
 - [ ] **Causal gate**: if causal design detected, `/scholar-causal` invoked (or confirmed already run)
+- [ ] **A2.5 pre-execution review**: model-ladder scripts drafted BEFORE execution; fast-3 review + `pre-exec-review-check.sh` GREEN (receipt row logged) — or `--skip-preexec-review` logged + justified in Limitations
 - [ ] Table 1 descriptives saved as HTML + TeX + docx + CSV
 - [ ] Regression table saved as HTML + TeX + docx
 - [ ] AME table saved (HTML + TeX + docx + **CSV as `ame-[model].csv`**) for every logit / probit / ordered-logit model (MANDATORY per results-registry-contract.md — do not hand-compute AMEs from coefficients; use `marginaleffects::avg_slopes()`)
@@ -1512,16 +1542,16 @@ See [references/analysis-standards.md](references/analysis-standards.md) for jou
 - `scholar-analyze-log-[topic]-[date].md` — internal technical log (decisions, verification, file inventory)
 - `scholar-analyze-results-[topic]-[date].md` — **publication-ready**: Results section prose + table notes + figure captions; ready to paste into `/scholar-write`
 
-**Post-analysis verification (recommended):**
+**Post-analysis verification:**
 
-After all tables and figures are produced, suggest to the user:
+The fast 3 review agents (`statistics`, `data-handling`, `correctness`) already adjudicated the model ladder at sub-stage A2.5 — that part is a gate, not a suggestion. After all tables and figures are produced, suggest to the user:
 
-> "Analysis outputs saved. Consider running:
-> - `/scholar-code-review full` to audit all analysis scripts for correctness, data handling errors (miscoded variables, wrong recodes), statistical misimplementation, and AI-generated code issues.
+> "Analysis outputs saved (model scripts passed pre-execution review at A2.5). Consider also running:
+> - `/scholar-code-review full` to add the 3 deferred review dimensions (`reproducibility`, `robustness`, `style`) across all scripts.
 > - `/scholar-verify stage1` to verify raw outputs (tables, figures) are internally consistent before writing.
-> These catch errors early — before they propagate into the manuscript."
+> These catch the remaining error classes before they propagate into the manuscript."
 
-This is a recommendation, not a gate — the user may proceed directly to `/scholar-write` if preferred. If run, `scholar-code-review` launches 6 review agents on scripts in `output/scripts/`; `scholar-verify stage1` launches verify-numerics and verify-figures on the raw outputs in `output/tables/` and `output/figures/`.
+The deferred-3 follow-up is a recommendation, not a gate — the user may proceed directly to `/scholar-write` if preferred. If run, `scholar-code-review` launches 6 review agents on scripts in `output/scripts/`; `scholar-verify stage1` launches verify-numerics and verify-figures on the raw outputs in `output/tables/` and `output/figures/`.
 
 ### Knowledge Graph Write-Back (post-save)
 

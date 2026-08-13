@@ -1,7 +1,7 @@
 ---
 name: scholar-data
 description: Comprehensive open data directory (100+ datasets across 14 categories) with auto-fetch capability, plus data collection instrument design, variable dictionaries, data management, IRB materials, and web/digital data collection for social science studies. Covers GSS, PSID, ACS, CPS, ESS, WVS, Afrobarometer, Eurobarometer, DHS, PISA, OECD, Eurostat, WHO, OpenAlex, Harvard Dataverse, ICPSR, Zenodo, OSF, and many more. Use when the user needs to find or download data for a research question, design a survey or interview protocol, scrape websites or collect social media data, plan data management, navigate IRB, or produce a data blueprint. Works best after /scholar-design and before /scholar-eda.
-tools: Read, WebSearch, Write, Bash
+tools: Read, WebSearch, Write, Bash, Agent
 argument-hint: "[dataset|survey|interview|irb|manage|vignette|scrape|web|api|social media] [topic or research question] [optional: population, journal, design]"
 user-invocable: true
 ---
@@ -111,6 +111,27 @@ HALTMSG
   fi
 fi
 ```
+
+---
+
+## Pre-Execution Review Duty (authored collection/transformation code)
+
+Protocol: `_shared/pre-execution-review.md` (phase tag `pre-exec-data`). Miscoded cleaning and scraping code produces silently wrong datasets that every downstream skill inherits. The duty covers **code this skill AUTHORS and executes**:
+
+- **In scope (draft-to-file → review → gate → execute):** W6 cleaning/construction pipelines; W7 scrapers (save to `scripts/scraping/NN-*` BEFORE running against live targets — scraping bugs also have legal/rate-limit consequences); W4 record-linkage or spatial-join code when actually executed.
+- **Exempt:** W0 fetch templates run **byte-unmodified** from this SKILL.md (beyond substituting the documented placeholders) — the post-download verification at "After successful download" still applies. The moment a template gains filters, merges, pagination logic, or is persisted as a project script, it re-enters the duty. Pure scaffolding (mkdir, git init, .gitignore) is always exempt.
+
+For in-scope code: (1) write the script to its path first — no inline execution; (2) load and execute `scholar-code-review` in pre-execution mode with `correctness` + `data-handling` (2 SEPARATE parallel Agent dispatches, recorded via `emit-task-dispatch.sh --phase pre-exec-data`; the statistics seat is excused for model-free collection code via `[EXCUSED: no models fitted] review-code-statistics` in the report); (3) fix loop `_shared/code-review-fix-loop.md` (max 2 iterations; re-review per scholar-code-review Step 6); (4) gate, then execute the reviewed file directly:
+
+```bash
+_b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"; [ -f "$_b" ] && . "$_b"; unset _b
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" --scripts-dir "$PROJ/scripts" \
+  --required=fast --phase pre-exec-data \
+  || { echo "HALT: pre-execution review failed — fix + re-review before running collection/cleaning code."; exit 1; }
+```
+
+Receipt row immediately before the first in-scope execution: `Pre-execution review: report <path> · review_id <id> · scripts N hashed · gate GREEN`. **Skip:** `--skip-preexec-review` (standalone only; logged + justified). Under orchestration, the orchestrator's review phases supersede.
 
 ---
 
@@ -1004,6 +1025,8 @@ Use when group interaction is the phenomenon of interest (e.g., deliberation, no
 
 ## WORKFLOW 4: Administrative and Secondary Data
 
+> Record-linkage / spatial-join code authored here, when executed, is IN SCOPE for the Pre-Execution Review Duty (above).
+
 ### Step 1: Data Access Strategy
 
 | Access type | Route | Timeline |
@@ -1123,6 +1146,8 @@ Online surveys with anonymous responses typically qualify for waiver of document
 ---
 
 ## WORKFLOW 6: Data Management Pipeline
+
+> Cleaning/construction code authored here is IN SCOPE for the Pre-Execution Review Duty (above): draft to `scripts/` first, review, gate, then execute the reviewed file.
 
 ### Step 1: Directory Structure
 
@@ -1264,6 +1289,8 @@ PI: [Name] | Institution: [Name] | Date: [Date]
 ## WORKFLOW 7: Web Scraping and Digital Data Collection
 
 Use when primary data must be collected from websites, social media platforms, news archives, or public APIs. Always attempt API-first; fall back to HTML scraping only when no API exists.
+
+> Scraper code authored here is IN SCOPE for the Pre-Execution Review Duty (above): save to `scripts/scraping/NN-*` first, review, gate, THEN run against live targets.
 
 ### Step 1: Ethical and Legal Framework
 

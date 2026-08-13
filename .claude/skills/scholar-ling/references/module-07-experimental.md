@@ -1,5 +1,7 @@
 ## MODULE 7: EXPERIMENTAL SOCIOLINGUISTICS
 
+> **DO NOT EXECUTE MODEL-FITTING BLOCKS INLINE.** Per SKILL.md §Pre-Execution Review, model code from this module is DRAFTED into its `L`-script, reviewed (fast 3 agents + `pre-exec-review-check.sh`), and then the reviewed file executes directly (`_shared/pre-execution-review.md`). Capped-subsample pilots are the only inline exception.
+
 Use when $ARGUMENTS contains: `experimental`, `vignette`, `factorial`, `reaction time`, `priming`, `IAT experiment`, `perception`, `Likert`.
 
 ### Step 7a: Matched Guise Technique — Extended Designs

@@ -1,7 +1,7 @@
 ---
 name: scholar-compute
 description: "Design and execute computational social science analyses across 11 modules: text-as-data/NLP (STM, BERTopic, Wordfish, BERT, conText embedding regression, LLM annotation + DSL bias correction, XLM-R/mBERT); ML (supervised, Double ML, Causal Forests, Bayesian brms/Stan, conformal prediction); network analysis (ERGMs, SAOMs, relational event models, GNN via PyTorch Geometric); agent-based modeling (Mesa 3.x, NetLogo, LLM agents, ODD, SALib); computer vision (DINOv2, CLIP, ViT, multimodal LLMs, VideoMAE); LLM workflows (structured extraction, CoT coding, computational grounded theory, RAG); LLM synthetic data (personas, silicon sampling, vignette sim); geospatial (sf, tidycensus, spdep, Moran's I, spatial SEM); audio-as-data (Essentia, Whisper, pyannote, PANNs/wav2vec2); life-event sequence modeling (life2vec per Savcisens et al. 2024 NCS). Runs per-module verification subagents. Saves internal log + publication-ready Methods + Results. Targets NCS, Science Advances, and computational sociology venues."
-tools: Read, Bash, Write, WebSearch
+tools: Read, Bash, Write, WebSearch, Agent
 argument-hint: "[text|network|ml|abm|reproduce|spatial|bayesian|dsl|audio|life2vec] [description of data and research question]"
 user-invocable: true
 ---
@@ -201,9 +201,34 @@ Set `SAFETY_STATUS` ∈ {`CLEARED`, `LOCAL_MODE`, `ANONYMIZED`, `OVERRIDE`, `HAL
 
 ---
 
+## MODULE 0.7: Pre-Scale Review (MANDATORY, blocking — runs before any at-scale execution)
+
+Protocol: `_shared/pre-execution-review.md` (phase tag `pre-exec-compute`). Sits beside MODULE 0.5 as the second global gate: 0.5 protects the data, 0.7 protects the results. Standalone counterpart of scholar-auto-research's Phase 6 pre-execution review.
+
+**Pilot vs at-scale (mechanical — protocol §2):** inline exploration is allowed ONLY as a declared pilot: capped input set at the module's own checkpoint numbers (MODULE 1 ≤50-document validity pilots; MODULE 6 ≤200-image validation samples; MODULE 7 pilot review of 50 documents; other modules: the smallest documented validation sample, or ≤5% of the corpus if none is named), no output feeding a manuscript/results registry/final estimator, no paid batch submission, no pilot-checkpoint reuse in production, `pilot` logged in the trace. Everything else is at-scale.
+
+**Before the FIRST at-scale execution in any module:**
+
+1. **Consolidate early.** Write the module's planned pipeline into its self-contained script(s) NOW (the Script Archive Protocol's "After Each Module Completes" steps 1–5, executed BEFORE the scale run instead of after). The drafted scripts are what get reviewed — and then the reviewed files are what execute.
+2. **Review:** load and execute `scholar-code-review` in pre-execution mode, fast 3 subset (`statistics data-handling correctness`) — 3 SEPARATE parallel Agent dispatches, each recorded via `emit-task-dispatch.sh --phase pre-exec-compute`; pass the module's validation references (e.g., Lin & Zhang 2025 four-risk framework for MODULE 1/7) as compliance baselines.
+3. **Fix loop:** `_shared/code-review-fix-loop.md` on CRITICAL findings (max 2 iterations; re-review per scholar-code-review Step 6).
+4. **Gate, then execute the reviewed scripts directly:**
+
+```bash
+_b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"; [ -f "$_b" ] && . "$_b"; unset _b
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
+  --required=fast --phase pre-exec-compute \
+  || { echo "HALT: MODULE 0.7 gate failed — fix + re-review before the at-scale run."; exit 1; }
+```
+
+Receipt row immediately before the first at-scale execution command: `Pre-execution review: report <path> · review_id <id> · scripts N hashed · gate GREEN`. **Skip:** `--skip-preexec-review` (standalone only; logged + justified in Limitations). Under scholar-auto-research orchestration Phase 6 supersedes this module — do not double-review.
+
+---
+
 ## Script Archive Protocol (All Modules)
 
-This protocol applies to **every module** in scholar-compute. It ensures all executed code is saved as self-contained scripts with decision rationale, so that `/scholar-open` CODE-SHARE can assemble replication packages from actual artifacts rather than reconstructed approximations.
+This protocol applies to **every module** in scholar-compute. It ensures all executed code is saved as self-contained scripts with decision rationale, so that `/scholar-open` CODE-SHARE can assemble replication packages from actual artifacts rather than reconstructed approximations. **Timing per MODULE 0.7:** for model-bearing/at-scale pipelines, consolidation happens BEFORE the scale run (the drafted scripts are reviewed, then executed); pilot/exploratory blocks keep consolidate-after.
 
 ### Initialize (if not already done)
 

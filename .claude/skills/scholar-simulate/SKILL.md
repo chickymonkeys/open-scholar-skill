@@ -108,7 +108,9 @@ python3 "$SKILL_DIR/assets/simulate_engine.py" run      --manifest <run-manifest
 python3 "$SKILL_DIR/assets/simulate_engine.py" validate --responses <responses.jsonl> --benchmark <human.csv> --out <fidelity.json>
 ```
 
-`--dry-run` builds personas + assembles prompts + writes the request manifest + prints a cost estimate and request count, making **zero API calls** (this is what the smoke test exercises). Always dry-run before a paid batch.
+`--dry-run` builds personas + assembles prompts + writes the request manifest + prints a cost estimate and request count, making **zero API calls** (this is what the smoke test exercises) — and writes `dry-run-receipt.json` (manifest SHA-256, request count, estimate, timestamp) into the checkpoint dir. **The receipt is ENFORCED by the engine, not by convention:** a paid run (`batch`/`async`) REFUSES to start (exit 4) unless a receipt exists whose hash matches the exact manifest bytes — editing the manifest stales the receipt. `local` runs ($0) are exempt. `--override-dry-run <reason>` is the deliberate escape; it is appended to `cost-ledger.jsonl` as a `dry-run-override` event.
+
+**Script Archive + Pre-Execution Review (generated analysis code).** The engine is vendored, but the analysis code this skill AUTHORS around it — response aggregation/post-stratification and simulated AME (`references/silicon-sampling.md`), Mesa/NetLogo ABMs and SALib sensitivity sweeps (`references/generative-abm.md`), calibration ranking (`references/validation-fidelity.md`) — is model-bearing R/Python and falls under `_shared/pre-execution-review.md` (phase tag `pre-exec-simulate`). Rules: (1) draft each such block into a script under `${OUTPUT_ROOT}/scripts/` using the `50`–`59` prefix range (reserved for simulation in scholar-compute's map) with the standard header, version-checked via `_shared/script-version-check.md` — no inline execution; (2) review via `scholar-code-review` pre-execution mode with `statistics` + `correctness` (2 SEPARATE parallel Agent dispatches, recorded via `emit-task-dispatch.sh --phase pre-exec-simulate`; data-handling seat excusable for pure-synthetic pipelines); (3) fix loop `_shared/code-review-fix-loop.md`; (4) `pre-exec-review-check.sh "$PROJ" --required=fast --phase pre-exec-simulate` must be GREEN, receipt row logged, then the reviewed files execute directly. `--skip-preexec-review` per the protocol. Under scholar-auto-research orchestration, Phase 6 reviews these same scripts — do not double-review.
 
 **Run manifest** (`run-manifest.json`) — the single source of truth for a run, pinned for reproducibility:
 
@@ -194,7 +196,8 @@ Pick by constraint: **thousands of cloud calls cheaply** → `anthropic`/`openai
 - [ ] Design doc names the validation benchmark and pass thresholds **before** the run.
 - [ ] Personas sampled from real joint distributions (raking/IPF), not invented; source cited.
 - [ ] Provider + exact model id + temperature + seed pinned in the run manifest and logged.
-- [ ] `--dry-run` cost estimate reviewed; run stayed under `cost_cap_usd`; cost ledger saved.
+- [ ] `--dry-run` cost estimate reviewed (receipt written; engine refuses paid runs without a matching one); run stayed under `cost_cap_usd`; cost ledger saved.
+- [ ] Generated analysis scripts (aggregation, AME, ABM, sensitivity, calibration) archived as `scripts/5N-*` and passed pre-execution review + `pre-exec-review-check.sh` before executing.
 - [ ] Validation run: KS / JSD / mean-diff / subgroup-r reported vs human data; thresholds met.
 - [ ] Verification subagent independently confirmed fidelity (not self-certified).
 - [ ] ABM runs include an ODD protocol; network topology specified and justified.

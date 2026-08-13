@@ -1,7 +1,7 @@
 ---
 name: scholar-ling
 description: Design and analyze studies in sociolinguistics, language variation, acoustic phonetics, discourse analysis, language contact, and computational linguistics. Covers VARBRUL/Rbrul for variation analysis, mixed-effects models for acoustic data, conversation analysis, critical discourse analysis, language attitudes (matched guise), corpus linguistics, computational sociolinguistics (conText embedding regression, LLM annotation for linguistic coding, BERT classification, semantic change detection, STM topic models), experimental sociolinguistics (factorial vignette experiments, IAT, reaction time paradigms, priming studies), Biber Multi-Dimensional Analysis (67 features, register comparison), and TTS-based matched guise tests. Produces R/Python code, publication-quality tables and figures, and saves output to disk. Use for Language in Society, Journal of Sociolinguistics, Language, Applied Linguistics, Nature Human Behaviour, Science Advances, and Nature Computational Science.
-tools: Read, WebSearch, Write, Bash
+tools: Read, WebSearch, Write, Bash, Agent
 argument-hint: "[variation|acoustic|corpus|CA|CDA|attitudes|contact|computational|experimental|MDA|TTS-guise] [linguistic phenomenon, population, and data type, e.g., '/t/-deletion in African American English, sociolinguistic interviews, Rbrul' or 'semantic change of immigration terms in congressional speech, conText' or 'language attitudes toward Southern English, factorial vignette, IAT']"
 user-invocable: true
 ---
@@ -166,6 +166,24 @@ For corpus directories, also scan any `speakers.csv` / `metadata.tsv` / `demogra
 
 ---
 
+### Pre-Execution Review (MANDATORY for model-fitting code)
+
+Protocol: `_shared/pre-execution-review.md` (state sequence `DRAFTED → REVIEWED+HASHED → EXECUTABLE`; pilot exemption §2; phase tag `pre-exec-ling`). Any module block that fits a model or computes a measurement destined for results — Rbrul/mixed-effects (MODULE 2), computational pipelines (MODULE 6), experimental models (MODULE 7), TTS-guise analysis (MODULE 9), and model-bearing blocks in any other module — is **drafted into its `L`-script FIRST (no inline execution)**, then:
+
+1. **Review:** load and execute `scholar-code-review` in pre-execution mode, fast 3 subset (`statistics data-handling correctness`) — 3 SEPARATE parallel Agent dispatches, each recorded via `emit-task-dispatch.sh --phase pre-exec-ling`. Non-model scripts (CA/CDA coding templates) enter as context or `out_of_scope[]`.
+2. **Fix loop:** `_shared/code-review-fix-loop.md` on CRITICAL findings (max 2 iterations; re-review per scholar-code-review Step 6).
+3. **Gate, then execute the reviewed L-scripts directly** (`Rscript "${OUTPUT_ROOT}/scripts/L01-variation-rbrul.R"` …):
+
+```bash
+_b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"; [ -f "$_b" ] && . "$_b"; unset _b
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
+  --required=fast --phase pre-exec-ling \
+  || { echo "HALT: pre-execution review failed — fix + re-review before running model scripts."; exit 1; }
+```
+
+Receipt row immediately before the first model execution: `Pre-execution review: report <path> · review_id <id> · scripts N hashed · gate GREEN`. **Skip:** `--skip-preexec-review` (standalone only; logged + justified in Limitations). Under scholar-auto-research orchestration Phase 6 supersedes this — do not double-review.
+
 ### Script Archive Protocol (MANDATORY — for replication package)
 
 Follow the script version control protocol defined in `.claude/skills/_shared/script-version-check.md`. **NEVER overwrite an existing script.**
@@ -187,7 +205,7 @@ echo "SCRIPT_PATH=${SCRIPT_BASE}.${EXT}"
 ```
 **Use the printed `SCRIPT_PATH` as `file_path` in the Write tool call.** Shell variables do NOT persist — re-derive in every call. Include `# Version: vN` and `# Changes:` lines in the script header for v2+.
 
-After EVERY major analysis code block is executed in the selected module(s), save the complete script to the versioned path. Use the Linguistics numbering range `L01`–`L19`:
+Save timing differs by block class (pre-execution-review protocol): **model-fitting blocks are DRAFTED to their L-script BEFORE execution** (the save is the drafting step; the reviewed file then executes directly); non-model blocks keep execute-then-archive. Either way, save to the versioned path using the Linguistics numbering range `L01`–`L19`:
 
 | Module | Script prefix | Example filename |
 |--------|--------------|-----------------|

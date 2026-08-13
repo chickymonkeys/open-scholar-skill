@@ -1,3 +1,5 @@
+> **DO NOT EXECUTE THESE BLOCKS INLINE.** Per SKILL.md sub-stage A2.5, A8-series specialized-model code is drafted into `scripts/09*-…` files, reviewed, then executed from the reviewed files (`_shared/pre-execution-review.md`).
+
 ### A8 — Oaxaca-Blinder Decomposition (Demography / stratification papers)
 
 ```r
