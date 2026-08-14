@@ -3,6 +3,14 @@
 All notable changes to open-scholar-skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [5.21.0] - 2026-08-14
+
+### Added: Traceability section in project CLAUDE.md auto-rules (§F)
+
+- `scripts/templates/claudemd-auto-rules-lean.md` — new **§F. Traceability — log every step, archive every script**: (1) every skill run appends a per-step RAO trace via `emit-trace.sh` (protocol `_shared/process-logger.md`; agent sidecars folded via `ingest-agent-trace.sh`; `trace-coverage-check.sh` RED on missing trace); (2) every executed R/Python/Stata/Julia script — including LOCAL_MODE `Rscript -e` / `python3 -c` heredocs — is archived verbatim to the project `scripts/` dir (`${OUTPUT_ROOT}/scripts/`) with the skill's numbering prefix and run header (protocol `_shared/script-version-check.md`); (3) trace-privacy rule (aggregate metrics only, never raw rows/PII). Rationale: project memory files previously carried zero traceability rules, relying entirely on each skill remembering its own protocol.
+- `scholar-init/SKILL.md` Step 1.2.5 — cross-skill rule list updated to name traceability.
+- Existing projects pick the section up automatically on the next `setup-project-claudemd.sh` invocation (content-diff refresh; `v2-lean` marker unchanged).
+
 ## [5.20.0] - 2026-08-13
 
 ### New: Pre-Execution Code Review — hash-bound independent review before model-authored code executes

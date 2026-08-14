@@ -55,6 +55,16 @@ Three layers (full text in `<plugin>/.claude/skills/_shared/data-handling-policy
 - **Code comments.** Every line of R / Python / Stata / Julia code must have an inline comment explaining what + why.
 - **Verification protocol.** After edits: (1) confirm file exists; (2) extract text to confirm changes; (3) report what you see, not what you expect.
 
+---
+
+## §F. Traceability — log every step, archive every script
+
+Every scholar-* skill run in this project must leave a complete, auditable trail. Protocols: `_shared/process-logger.md` (RAO trace) + `_shared/script-version-check.md` (script archive).
+
+- **Log everything (RAO trace).** Append one record per step — reasoning (the "why"), action (tool / script / gate / agent call), observation (verdict / metric / file) — to `${OUTPUT_ROOT}/logs/trace-<skill>-<YYYY-MM-DD>.ndjson` via `bash <plugin>/scripts/gates/emit-trace.sh`. Render the human-readable process log with `render-trace.sh`; never hand-write process-log tables. Dispatched agents emit a `<report>.trace.ndjson` sidecar (per `_shared/agent-trace-contract.md`); fold it in with `ingest-agent-trace.sh`. A skill run with no valid trace RED-fails `trace-coverage-check.sh`.
+- **Archive every script that runs.** Any R / Python / Stata / Julia code executed against project data — including one-off snippets and LOCAL_MODE `Rscript -e` / `python3 -c` heredocs (§C) — must be saved verbatim to the project `scripts/` directory (`${OUTPUT_ROOT}/scripts/`) at execution time, using the invoking skill's Script Archive numbering prefix and a header comment (date, skill, purpose, input/output paths). A number, table, or figure produced by console code that was never archived is a reproducibility defect: the artifact cannot be traced back to code. NEVER overwrite an existing script — follow `_shared/script-version-check.md` for versioning.
+- **Trace privacy.** Traces and archived scripts carry aggregate metrics, verdicts, counts, code, and file refs ONLY — never raw data rows, verbatim respondent values, or PII. The LOCAL_MODE rule in §C governs logs and scripts too.
+
 {{CONDITIONAL_RULES}}
 
 ---
