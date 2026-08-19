@@ -41,9 +41,16 @@ _CANON = ["abstract", "introduction", "literature", "methods",
 _ALTS = {
     "abstract":     r"Abstract|ABSTRACT",
     "introduction": r"Introduction|INTRODUCTION",
-    "literature":   r"Literature Review|LITERATURE REVIEW|Related Work|Prior Research|"
-                    r"Prior Literature|Theoretical Background|Theoretical Framework|"
-                    r"Conceptual Framework|Background and Theory",
+    # Ordering matters: regex alternation is first-match, so multi-word forms
+    # must precede the bare word ("Theoretical Framework" before "Theory",
+    # "Related Works" before "Related Work") or the shorter form wins and the
+    # heading is truncated mid-phrase.
+    "literature":   r"Literature Review|LITERATURE REVIEW|Related Works|Related Work|"
+                    r"RELATED WORK|Prior Research|Prior Literature|Prior Work|"
+                    r"Previous Work|Theoretical Background|Theoretical Framework|"
+                    r"THEORETICAL FRAMEWORK|Theoretical Considerations|"
+                    r"Conceptual Framework|Background and Theory|"
+                    r"Theory and Hypotheses|Theory and Hypothesis|Theory|THEORY",
     "methods":      r"Materials and Methods|MATERIALS AND METHODS|Data and Methods|"
                     r"DATA AND METHODS|Methods and Data|Methodology|METHODOLOGY|"
                     r"Methods|METHODS|Method|Research Design|Empirical Strategy|"
