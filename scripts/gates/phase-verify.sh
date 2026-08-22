@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase Verification Gate — scholar-full-paper
+# Phase Verification Gate — orchestrated multi-phase runs
 # Usage: bash scripts/gates/phase-verify.sh <phase> <project_dir>
 # Example: bash scripts/gates/phase-verify.sh 2 output/immigrant-wage-penalty
 # Checks: PROJECT STATE exists, phase entry present, expected files exist, word counts
@@ -452,11 +452,25 @@ case "$PHASE" in
 esac
 
 # --- Check 4: Process log updated for this phase ---
-PROCESS_LOG=$(find "$PROJ/logs" -name "process-log-scholar-full-paper*" 2>/dev/null | head -1 || true)
-if [ -n "$PROCESS_LOG" ]; then
-  PHASE_LOGGED=$(grep -cF "Phase $PHASE" "$PROCESS_LOG" 2>/dev/null || true)
+# Match ANY orchestrator's rendered process log. This globbed
+# `process-log-scholar-full-paper*` alone — a skill this repo deliberately does
+# not ship — so the find never matched, PROCESS_LOG was always empty, and the
+# check below could never fire. A check that cannot run is not a check that
+# passes. Logs are named `process-log-<skill>-<date>.md` by render-trace.sh.
+#
+# Still silent when NO process log exists at all: that is "nothing to check",
+# not "the phase is unlogged", and the pre-existing behaviour was correct there.
+PROCESS_LOGS=$(find "$PROJ/logs" -name 'process-log-*' 2>/dev/null || true)
+if [ -n "$PROCESS_LOGS" ]; then
+  PHASE_LOGGED=0
+  while IFS= read -r _plog; do
+    [ -f "$_plog" ] || continue
+    if grep -qF "Phase $PHASE" "$_plog" 2>/dev/null; then PHASE_LOGGED=1; break; fi
+  done <<EOF
+$PROCESS_LOGS
+EOF
   if [ "$PHASE_LOGGED" -eq 0 ]; then
-    REPORT="${REPORT}\n  WARN: Phase $PHASE not found in process log"
+    REPORT="${REPORT}\n  WARN: Phase $PHASE not found in any process log"
     WARNINGS=$((WARNINGS + 1))
   fi
 fi

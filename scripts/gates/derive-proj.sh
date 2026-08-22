@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # derive-proj.sh — single source of truth for the ${PROJ} path.
 #
-# Every phase of scholar-full-paper, scholar-book, scholar-grant, etc. needs
-# to write to the project-scoped output directory (`output/<slug>/`). Shell
-# variables do NOT persist across Bash tool calls (per the repo's CLAUDE.md
-# rule), so every Bash block has to re-derive PROJ. This helper is the
-# canonical derivation logic — sourcing it replaces the legacy
+# Every phase of an orchestrated run (scholar-auto-research and any other
+# multi-phase caller) needs to write to the project-scoped output directory
+# (`output/<slug>/`). Shell variables do NOT persist across Bash tool calls (per
+# the repo's CLAUDE.md rule), so every Bash block has to re-derive PROJ. This
+# helper is the canonical derivation logic — sourcing it replaces the legacy
 #     PROJ="${PROJ:-output/_staging}"
 # one-liner that defaulted every phase to a staging directory and silently
-# broke the scholar-init → scholar-full-paper handshake.
+# broke the handshake from scholar-init into the pipeline.
 #
 # Usage (inside any Bash block in a SKILL.md or reference file):
 #     . "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
