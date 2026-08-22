@@ -256,11 +256,10 @@ only if the user authorizes it**. The protocol:
 
 2. **The orchestrator surfaces the request to the user verbatim and STOPS.** It may not grant
    it. It may not run the command itself. It may not "just check quickly". A recorded user
-   authorization is the only thing that turns a request into an action — the same principle as
-   `set-authorized-through`, and the same as the `NUMBER_EFFECT` reclassification rule: the
-   orchestrator is the party under the most pressure to clear the phase, so it is the party that
-   must not hold this key. `scripts/gates/independent-check-requests.sh` lists every pending
-   request so none can be overlooked.
+   authorization is the only thing that turns a request into an action, on the same principle
+   as the `NUMBER_EFFECT` reclassification rule above: the orchestrator is the party under the
+   most pressure to clear the phase, so it is the party that must not hold this key. Keep every
+   pending request recorded where the run cannot lose it, so none is overlooked.
 
 3. **If the user authorizes**, the command runs under a **Bash-capable agent, not you** —
    `review-code-statistics` holds `Bash` for exactly this kind of scoped check — with the

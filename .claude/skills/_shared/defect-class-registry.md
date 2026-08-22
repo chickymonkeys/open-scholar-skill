@@ -164,11 +164,12 @@ the iteration-3 fixes and found 11 CRITICALs, **8 of them in the assurance layer
 > Fix commits are not evidence against a class; they are a fresh unaudited surface for it,
 > written under exactly the conditions that produce the original.
 
-**Remedy.** `iter2-required-check.sh` enforces iterN, not iter2: any RED iteration requires a
-following iteration, **scoped to the diff** (a full re-review re-finds settled issues; the
-diff-scoped iteration 4 found 11 real CRITICALs in one pass). Note that a pattern-absence check
-such as `fix-contract-verify.sh --phase AFTER` verifies the flagged pattern is gone — it cannot
-see a defect the fix *introduced*. Only another review iteration can.
+**Remedy.** Enforce iter**N**, not iter2: any RED iteration requires a following iteration,
+**scoped to the diff** (a full re-review re-finds settled issues; the diff-scoped iteration 4
+found 11 real CRITICALs in one pass). Note what a pattern-absence check — one that confirms the
+flagged pattern is gone once a fix has landed — can and cannot establish: it verifies the
+original defect is absent, and nothing more. It cannot see a defect the fix *introduced*. Only
+another review iteration can.
 
 ---
 

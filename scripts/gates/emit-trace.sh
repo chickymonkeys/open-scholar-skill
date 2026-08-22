@@ -22,9 +22,8 @@
 #
 #   `session_id` is the Claude Code session that produced the step. It is
 #   auto-derived from $CLAUDE_CODE_SESSION_ID (fallback $CLAUDE_SESSION_ID) and
-#   is what lets render-trace-html.sh deep-link a trace row into the rendered
-#   raw-session transcript built by render-session-transcript.sh. It is NOT in
-#   trace-coverage-check.sh's REQ set: that gate checks REQ is a SUBSET of the
+#   lets a consumer tie a trace row back to the session that produced it. It is
+#   NOT in trace-coverage-check.sh's REQ set: that gate checks REQ is a SUBSET of the
 #   record's keys, so adding a field is forward- and backward-compatible and
 #   pre-existing traces do not retroactively RED. null when unavailable (e.g.
 #   a Codex host, or a non-interactive runner).
