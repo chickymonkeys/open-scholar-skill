@@ -16,9 +16,18 @@
 #   from the current line count, so callers need not track state.
 #
 # RECORD SCHEMA
-#   {"ts","seq","run_id","skill","phase","agent","agentId","step",
+#   {"ts","seq","run_id","skill","phase","agent","agentId","session_id","step",
 #    "reasoning","action","observation","refs":[...],"status"}
 #   Required: skill, step, and >=1 non-empty of {reasoning, action, observation}.
+#
+#   `session_id` is the Claude Code session that produced the step. It is
+#   auto-derived from $CLAUDE_CODE_SESSION_ID (fallback $CLAUDE_SESSION_ID) and
+#   is what lets render-trace-html.sh deep-link a trace row into the rendered
+#   raw-session transcript built by render-session-transcript.sh. It is NOT in
+#   trace-coverage-check.sh's REQ set: that gate checks REQ is a SUBSET of the
+#   record's keys, so adding a field is forward- and backward-compatible and
+#   pre-existing traces do not retroactively RED. null when unavailable (e.g.
+#   a Codex host, or a non-interactive runner).
 #
 # PRIVACY (C-01 / LOCAL_MODE)
 #   `observation` MUST carry aggregate metrics, verdicts, counts, and file refs
@@ -36,6 +45,7 @@
 #     --refs "tables/results-registry.csv" --status ok
 #
 #   Optional: --agentId <id> (for ingested subagent steps; default null/self),
+#             --session-id <id> (default $CLAUDE_CODE_SESSION_ID; null if unset),
 #             --output-root <dir> (default $OUTPUT_ROOT or "output"),
 #             --run-id <id> (default "<skill>-<date>").
 #
@@ -50,6 +60,7 @@ SKILL=""
 PHASE=""
 AGENT="self"
 AGENT_ID=""
+SESSION_ID=""
 STEP=""
 REASONING=""
 ACTION=""
@@ -65,6 +76,7 @@ while [ $# -gt 0 ]; do
     --phase)        PHASE="${2:-}"; shift 2 ;;
     --agent)        AGENT="${2:-}"; shift 2 ;;
     --agentId)      AGENT_ID="${2:-}"; shift 2 ;;
+    --session-id)   SESSION_ID="${2:-}"; shift 2 ;;
     --step)         STEP="${2:-}"; shift 2 ;;
     --reasoning)    REASONING="${2:-}"; shift 2 ;;
     --action)       ACTION="${2:-}"; shift 2 ;;
@@ -140,11 +152,16 @@ fi
 TS=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)
 AGENT_ID_JSON="null"
 [ -n "$AGENT_ID" ] && AGENT_ID_JSON="\"$(esc "$AGENT_ID")\""
+# Session id: explicit flag wins; else the host's env var; else null. Never fail
+# on absence — a Codex host and a bare CI runner both legitimately lack one.
+[ -n "$SESSION_ID" ] || SESSION_ID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+SESSION_ID_JSON="null"
+[ -n "$SESSION_ID" ] && SESSION_ID_JSON="\"$(esc "$SESSION_ID")\""
 PHASE_JSON="null"
 [ -n "$PHASE" ] && PHASE_JSON="\"$(esc "$PHASE")\""
 
-printf '{"ts":"%s","seq":%s,"run_id":"%s","skill":"%s","phase":%s,"agent":"%s","agentId":%s,"step":"%s","reasoning":"%s","action":"%s","observation":"%s","refs":%s,"status":"%s"}\n' \
-  "$TS" "$SEQ" "$(esc "$RUN_ID")" "$(esc "$SKILL")" "$PHASE_JSON" "$(esc "$AGENT")" "$AGENT_ID_JSON" \
+printf '{"ts":"%s","seq":%s,"run_id":"%s","skill":"%s","phase":%s,"agent":"%s","agentId":%s,"session_id":%s,"step":"%s","reasoning":"%s","action":"%s","observation":"%s","refs":%s,"status":"%s"}\n' \
+  "$TS" "$SEQ" "$(esc "$RUN_ID")" "$(esc "$SKILL")" "$PHASE_JSON" "$(esc "$AGENT")" "$AGENT_ID_JSON" "$SESSION_ID_JSON" \
   "$(esc "$STEP")" "$(esc "$REASONING")" "$(esc "$ACTION")" "$(esc "$OBSERVATION")" "$(refs_json "$REFS")" "$(esc "$STATUS")" \
   >> "$TRACE_FILE"
 

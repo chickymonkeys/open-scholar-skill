@@ -65,12 +65,28 @@ STOPWORDS = {
 }
 
 
+# Exit-code contract shared by every gate in this plugin:
+#   0 GREEN · 1 RED · 2 YELLOW · 3 INERT ("graded nothing").
+# This map used to be `1 if status == "RED" else 0`, which collapsed INERT onto
+# GREEN: a gate that examined NOTHING became indistinguishable from one that
+# checked and found nothing wrong.
+#
+# Nothing was mis-reporting here as a result. The only consumer of these five
+# gates is `run_external_gate` in auto-research-verify.sh, which parses the
+# STATUS line and ignores the return code, so it read INERT correctly throughout.
+# The fix matters for any caller that branches on the EXIT CODE instead: the
+# contract such a caller relies on was simply wrong, and a section that was never
+# examined reached it as a pass.
+_EXIT_CODES = {"GREEN": 0, "RED": 1, "YELLOW": 2, "INERT": 3}
+
+
 def emit(status: str, reason: str, details: list[str] | None = None) -> int:
     print(f"STATUS={status}")
     print(f"REASON={reason}")
     for detail in details or []:
         print(f"DETAIL: {detail}")
-    return 1 if status == "RED" else 0
+    # An unknown status is a contract violation, not a pass: fail closed on RED.
+    return _EXIT_CODES.get(status, 1)
 
 
 def read_text(path: Path) -> str:

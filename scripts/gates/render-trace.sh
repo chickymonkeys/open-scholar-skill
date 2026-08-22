@@ -92,7 +92,15 @@ with open(out, "w") as w:
             seq=r.get("seq", ""),
             ts=hhmmss(r.get("ts")),
             phase=cell(r.get("phase")),
-            agent=cell(r.get("agent")),
+            # RENDER THE agentId ALONGSIDE THE AGENT NAME (audit 2026-08-18).
+            # emit-trace.sh writes `agentId` as a STRUCTURED field; render-trace.sh
+            # dropped it. A consumer reading the structured NDJSON (trace-coverage-check.sh)
+            # could therefore see the id, while any consumer grepping this RENDERED log
+            # could not — one fact published on two channels, with the rendered channel
+            # silently missing it, so the only way to satisfy both was to duplicate the id
+            # into the free-text `action`.
+            agent=cell(("%s (agentId=%s)" % (r.get("agent"), r.get("agentId")))
+                       if r.get("agentId") else r.get("agent")),
             step=cell(r.get("step")),
             reasoning=cell(r.get("reasoning")),
             action=cell(r.get("action")),

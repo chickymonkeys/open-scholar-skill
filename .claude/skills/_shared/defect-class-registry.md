@@ -284,6 +284,145 @@ prevents nothing an owner can do deliberately. Verification is the load-bearing 
 
 ---
 
+## DC-08 — A defaulted column read *(PROVISIONAL — single-project provenance)*
+
+**Statement.** A consumer reads a column through a defaulting accessor (`get(name, default=NA)`
+and friends). When the producer renames, splits, or drops that column, the read returns the
+default — so a **contract break between two files becomes indistinguishable from a null value**,
+and flows onward as if it were data.
+
+**Evidence.** A registry terminal completed green — 12/12 declared inputs consumed, vintage
+matching, 136 artifacts md5-verified, `rc=0`, every mechanical gate passing — and wrote the most
+quotable field in the tree:
+
+> `MAGNITUDE: NA of 10 DSL rows clear the pre-declared gate, while the UNCORRECTED naive row does`
+
+The underlying data was correct and unambiguous. The columns the verdict read **did not exist**:
+the producer had split them by variance convention precisely to stop conflating the two, and the
+consumer kept reading the old names through a defaulted accessor. Three collapses in series —
+*column absent → value NA → asserted sentence* — and the second prose field on the same row
+carried the identical defect.
+
+**Why the DC-01 lints do not reach it.** This is the three-valued class at the **schema** level,
+not the value level. There is no NA-capable operand, no `as.logical()` feeding a row index, no
+`identical()` assigning a verdict. The missing thing is a *column*; nothing local to the
+expression is wrong.
+
+**Trigger.** Grep for defaulting accessors on column reads, then ask of each: *what happens the
+day the producer renames this column?* Any answer other than "it refuses" is an instance.
+
+**Remedy — `req(nm)`, the column-level analogue of a declared-inputs list.** Name every column
+you read; return a **recorded refusal** rather than a default; and distinguish **ABSENT** (a
+contract break between two files) from **PRESENT-BUT-NA** (a missing measurement) — they need
+different repairs, and collapsing them loses the distinction that tells you which. The registry
+solved exactly this problem one level up with `DECLARED_INPUTS`; it was never applied to columns.
+
+**Limits.** The remedy cannot reach a producer that never distinguished the states *in memory* —
+if the route is lost before the write, there is no companion to record. That case is upstream:
+*don't collapse before you record.*
+
+**Consumers.** `review-code-*` briefs §Artifact Prose Fields Are Outputs (producer semantics);
+Phase-7b `verify-*` agents (emitted-value consumption, scoped per agent).
+
+---
+
+## DC-10 — A verifier that does not exercise the real producer *(PROVISIONAL — single-project provenance)*
+
+**Statement.** A verification script that holds **its own copy** of the logic under test, or
+builds a fixture in a shape the producer never emits, certifies the copy rather than the code.
+Its green result is about an artifact that does not exist in production.
+
+**Evidence.** Three independent instances on one run. A self-test wrote a fixture containing a
+literal `TRUE` in a column the producer emits as an **integer count** — it passed against a shape
+the producer has never written, and the deferred item it "cleared" was reported closed on that
+evidence. A guard's detector matched a column-name **prefix**, so it selected two count columns
+and compared integers against boolean literals, making it structurally incapable of firing on the
+one artifact family it was written for. And four wrappers verified `analysis_table.parquet` while
+all four estimators read `analysis_table.csv`.
+
+**Trigger.** For each verification script ask: *does this exercise the real producer, and would it
+fail if the code under test were wrong?* If the fixture is hand-built, does its schema match what
+the producer actually writes — dtypes included, not just column names?
+
+**Remedy.** Extract the logic under test **from the module itself** rather than copying it; build
+fixtures from a real producer run where possible; and give every guard test a **negative control**
+— an input that must make it fire. A test with no negative control cannot distinguish "the guard
+works" from "the guard cannot fire".
+
+**Limits.** A negative control proves the guard fires on *the* case you thought of. It says
+nothing about cases you did not.
+
+---
+
+## DC-11 — A guard that cannot look, but permits *(PROVISIONAL — single-project provenance)*
+
+**Statement.** A protective check meets a state it cannot evaluate — unreadable file, unparseable
+schema, absent dependency — and **grants permission** rather than refusing. It fails open in
+exactly the state where its protection is most needed.
+
+**Evidence.** A refusal guard protecting a file from being clobbered carried
+`except Exception: return  # unreadable -> treat as absent`, so the one file it protects, in the
+one state where it could verify nothing, was granted permission. A LOCAL_MODE leak audit reported
+`0 leaks, PASS` and would have printed the same with its parser library absent, having inspected
+zero schemas. A bare `except: return []` made unreadable parquet indistinguishable from clean
+parquet, because `[]` was that function's word for *clean*.
+
+**Trigger.** Read every `except`/`tryCatch`/`|| true` inside a guard and ask what the caller
+concludes from the fallback value. If the fallback is the same value the guard returns for
+"looked, found nothing", it fails open.
+
+**Trigger 2 — the binary classifier (added 2026-08-16).** The trigger above searches for a
+*swallowed error*, and on 2026-08-16 it missed a live instance for that reason: there was no
+`except` and no `|| true` anywhere near it. Also ask, of every predicate a gate uses to reach a
+verdict: **what does the FALSE branch mean?** If a two-valued predicate answers "did I find
+failure?", then "no" silently merges *I looked and it is clean* with *I could not tell*, and the
+pass path is reached by both. Greppable form: a helper whose body is a single `grep -q`, called
+as `if is_bad "$f"; then …fi` with no third branch. Three instances found the day the shape was
+named, all in gates written to enforce other classes:
+
+| Site | Two-valued predicate | What "false" silently meant |
+|---|---|---|
+| A review-iteration gate's `is_red()` | one `grep -qE` for `^STATUS=(RED\|FAIL)$` | six reports each stating `STATUS: RED` (colon) were unreadable, so the gate printed `STATUS=GREEN` / "no agent's highest review iteration is RED" with 22 `NUMBER_EFFECT: YES` findings open |
+| A model-specification lint | `FORMULAS_RESOLVED == 0` as the refusal boundary | resolving 2 of 14 formulas printed `STATUS=GREEN`, "no violations detected" — a claim about 14 established for 2 |
+| That lint's arm in the phase gate | `exit 3` treated as one state | the gate's two INERT reasons ("nothing to lint" and "I could not assess") were both skipped silently, making a prior refusal fix unreachable by any human |
+
+**Corollary — a refusal that reaches nobody is not a guard.** The third state must survive the
+*consumer*, not merely be emitted. Two of the three sites above were gates that already refused
+correctly; the defect was one layer out, in the code reading the refusal. When adding a
+could-not-assess state, patch its consumer in the same change and prove it surfaces.
+
+**Remedy.** Three states, never two: **clean / dirty / could-not-assess**. A guard that cannot
+look must refuse, not permit — and the refusal must be distinguishable in the artifact, not only
+on stdout. Gate-level analogue: never emit a verdict the check did not establish, and never print
+a remediation instruction on a path where the check did not run.
+
+**Limits.** Recording the third state on stdout while the *artifact* still carries the definite
+one reproduces the class one layer out; the companion must be written where the consumer reads.
+
+---
+
+## Candidate classes — NOT yet standing review instructions
+
+These have single-project provenance and, unlike DC-08/10/11, are **not** coupled to a shipped
+contract. Per CLAUDE.md Working Discipline rule 10 they are recorded here so the evidence is not
+lost, and deliberately **not** added to the six `review-code-*` sweep lists: every class added
+there becomes standing reviewer workload on every project, and eight at once would dilute
+attention and raise false-positive load faster than it raises yield.
+
+**Promotion threshold.** A candidate becomes a DC-xx when *either* a peer project on a different
+orchestrator path reproduces it, *or* hand-built fixtures cover every syntactic shape its trigger
+could plausibly match (rule 10's two routes).
+
+| Candidate | One-line mechanism | Evidence |
+|---|---|---|
+| `assert` disabled under optimization | Python strips `assert` under `-O`/`PYTHONOPTIMIZE=1`, and wrappers submitting with `--export=ALL` propagate it; a `--selftest` returns `rc=0` having asserted nothing. Remedy: a **canary** — the self-test first calls `_must(False, …)` and refuses to proceed unless it raises. | one run, one wrapper family |
+| Success message counts arguments, not work | `OK: N file(s) match <pin>` where N was `len(argv)-2` — the number of arguments *offered*, printed nine times at several of which the checker hashed nothing. Generalizes U7 from linters to every guard's success line. | one run |
+| `str(None)` is truthy | `str(None)` → the string `"None"`, which then satisfies a truthiness test and raises a **graver** false alarm ("labels drawn from a different build") than the truth (an unstamped manifest). | one run |
+| Read-modify-write with a tolerant read | Two scripts both read-modify-**write** a shared manifest with `except: manifest = {}`, so a partial read caused each to silently delete the other's provenance and republish the file as whole. | one run |
+| Prefix-vs-exact match in a stamp consumer | A detector matched a column-name prefix and so could never fire on the family it was written for. *(Folded into DC-10's evidence; listed here as its own trigger shape.)* | one run |
+
+---
+
 ## How to add a class
 
 1. Confirm it recurs — ≥2 independent sites, or it survived ≥2 review passes.

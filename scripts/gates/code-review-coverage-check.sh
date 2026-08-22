@@ -64,6 +64,11 @@ PROJ=""
 REPORT=""
 MODE="full"
 PHASE_ARG=""
+REPORT_EXPLICIT=0
+AGG_TMP=""
+REPORT_LAYOUT="consolidated"
+# Clean up the aggregate scratch file on every exit path.
+trap '[ -n "$AGG_TMP" ] && [ -f "$AGG_TMP" ] && rm -f "$AGG_TMP"' EXIT
 for arg in "$@"; do
   case "$arg" in
     --required=fast) MODE="fast" ;;
@@ -73,7 +78,7 @@ for arg in "$@"; do
     --phase=) echo "ERR: --phase requires a non-empty tag" >&2; exit 1 ;;
     *)
       if [ -z "$PROJ" ]; then PROJ="$arg"
-      elif [ -z "$REPORT" ]; then REPORT="$arg"
+      elif [ -z "$REPORT" ]; then REPORT="$arg"; REPORT_EXPLICIT=1
       else echo "ERR: too many positional args" >&2; exit 1
       fi
       ;;
@@ -87,6 +92,24 @@ fi
 # Auto-detect newest code-review report. Skill writes to either
 # `${PROJ}/reports/code-review-*.md` (orchestrator convention) or
 # `${PROJ}/code-review/code-review-*.md` (direct invocation).
+# An explicitly-passed report path that does not exist is an INVOCATION ERROR, not
+# an absent report. Folding the two together (the prior behaviour) meant a stray
+# positional — e.g. `<proj> 5.5`, mistaking the phase for an argument — was swallowed
+# as `[<report_path>]` and reported as "no report found", flipping a genuinely GREEN
+# project to YELLOW with a message naming the wrong cause (register G4).
+if [ "$REPORT_EXPLICIT" = "1" ] && [ ! -f "$REPORT" ]; then
+  echo "STATUS=RED"
+  echo "FAIL: explicit report path does not exist: $REPORT"
+  case "$REPORT" in
+    [0-9]*)
+      echo "      That looks like a phase tag. Phase is a FLAG, not a positional:"
+      echo "        code-review-coverage-check.sh \"\$PROJ\" --phase=$REPORT" ;;
+    *)
+      echo "      Pass an existing report path, or omit it to auto-discover." ;;
+  esac
+  exit 1
+fi
+
 if [ -z "$REPORT" ]; then
   CANDIDATES=$(ls -t \
     "$PROJ"/reports/code-review-*.md \
@@ -97,12 +120,49 @@ if [ -z "$REPORT" ]; then
   REPORT="$CANDIDATES"
 fi
 
+# Layout B — per-dimension reports. An orchestrator that dispatches the six agents
+# separately gets six reports, each written by one agent
+# (reviews/phase-5.5-iterN-<dim>.md). On the run that surfaced this, 36 such files
+# existed and the gate still said "no report found".
+#
+# scholar-code-review writes a single CONSOLIDATED report, which Layout A above
+# already finds — so this path is dormant for that skill and exists for callers
+# that fan the dimensions out into separate files.
+#
+# These are aggregated, never selected: each file carries ONE dimension, so picking
+# the newest single file would scan a 1-of-6 surface and RED a project that did all
+# the work. We concatenate the highest iteration's files into one scan surface.
+if [ -z "$REPORT" ] && [ -d "$PROJ/reviews" ]; then
+  _hi=0
+  for _f in "$PROJ"/reviews/phase-5.5-iter*-*.md; do
+    [ -f "$_f" ] || continue
+    _b="${_f##*/}"; _n="${_b#phase-5.5-iter}"; _n="${_n%%-*}"
+    case "$_n" in ''|*[!0-9]*) continue ;; esac
+    [ "$_n" -gt "$_hi" ] && _hi="$_n"
+  done
+  if [ "$_hi" -gt 0 ]; then
+    AGG_TMP="$(mktemp -t crcc-agg.XXXXXX 2>/dev/null || echo "")"
+    if [ -n "$AGG_TMP" ]; then
+      for _f in "$PROJ"/reviews/phase-5.5-iter${_hi}-*.md; do
+        [ -f "$_f" ] || continue
+        printf '\n<!-- source: %s -->\n' "${_f##*/}" >> "$AGG_TMP"
+        cat "$_f" >> "$AGG_TMP"
+      done
+      if [ -s "$AGG_TMP" ]; then
+        REPORT="$AGG_TMP"
+        REPORT_LAYOUT="per-dimension(iter${_hi})"
+      fi
+    fi
+  fi
+fi
+
 if [ -z "$REPORT" ] || [ ! -f "$REPORT" ]; then
   echo "STATUS=YELLOW"
-  echo "WARN: no code-review report found under $PROJ/{reports,code-review}/."
+  echo "WARN: no code-review report found under $PROJ/{reports,code-review}/ or $PROJ/reviews/phase-5.5-iterN-<dim>.md."
   echo "      Run scholar-code-review (full mode) before invoking this gate."
   exit 2
 fi
+echo "REPORT_LAYOUT=$REPORT_LAYOUT"
 
 if [ "$MODE" = "fast" ]; then
   REQUIRED=(

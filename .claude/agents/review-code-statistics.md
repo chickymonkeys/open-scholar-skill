@@ -41,6 +41,56 @@ Two constraints on any companion you recommend, both learned by watching them fa
 Report each instance as `CRIT-3VAL` with the branch count, the value count, and the companion
 you would require.
 
+## Artifact Prose Fields Are Outputs (BINDING — producer semantics)
+
+`verdict`, `note`, `estimand`, `*_NOTE`, drafter instructions, arm inventories — any
+human-readable string an analysis artifact emits. Some are lifted **verbatim into the
+manuscript**, and they arrive pre-written, so they get *less* scrutiny than the numbers
+beside them. Nothing else in the pipeline reads them: the Phase-7b `verify-*` agents read
+the manuscript against tables, and you read code. If you skip these, no one checks them.
+
+**You own PRODUCER semantics** — how the field is computed. Phase-7b owns the emitted value
+(see boundary below). Check three things:
+
+1. **Assembled at run time, never typed.** A literal string stating a finding is
+   `PUT_RECALL <- 0.491` in prose form: a number with no path to its source, which no fix to
+   the artifact it came from can ever invalidate. On the source run a retracted claim was
+   removed from code thoroughly — two arms, five functions, every literal — and still shipped
+   in an ESTIMAND string that is read verbatim into the paper. The retraction reached the
+   manuscript through a different door than the one being watched.
+
+2. **Fail closed when the artifact cannot support the sentence.** Run-time assembly is
+   necessary and *not sufficient*: it guarantees the number is current, not that it exists.
+   The sharpest instance on that run assembled correctly and still emitted
+
+   > `MAGNITUDE: NA of 10 DSL rows clear the gate, while the UNCORRECTED naive row does`
+
+   — a conclusion asserted in the same breath as its own parenthetical reporting `NA`, at
+   `rc=0`, with every mechanical gate green. A field that cannot compute its own count must
+   **refuse to assert**, the way `ARTIFACT_ABSENT` / `H3_NOT_QUOTABLE` already do for
+   structured fields. Emitting the sentence with a hole in it is the defect.
+
+3. **Name every column you read (the schema-level shape, DC-08).** That `NA` was not
+   arithmetic — the columns had been *split by variance convention* by the producer (the fix
+   for an earlier conflation), and the consumer kept reading the old names through a
+   defaulted accessor. Three collapses in series: **column absent → value NA → asserted
+   sentence**. No NA-hunting lint reaches it: there is no NA-capable operand, no
+   `as.logical()` on a row index, nothing to grep. The missing thing is a *column*, and a
+   defaulted read makes its absence indistinguishable from a null value.
+
+   Require: name each column read; return a **recorded refusal** rather than a default; and
+   distinguish **ABSENT** (a contract break between two files) from **PRESENT-BUT-NA** (a
+   missing measurement) — they need different repairs. The registry already solved this one
+   level up with declared-inputs lists; it was never applied to columns.
+
+**Ownership boundary — do not duplicate Phase 7b.** You own how the field is *computed*:
+branch coverage, schema, missing-state behaviour, fail-closed behaviour. The Phase-7b panel
+owns whether the *emitted value* agrees with its supporting artifact and its manuscript use
+(`verify-numerics` tabular numeric/note fields; `verify-logic` estimand/adjudication/verdict
+and claim-bearing text; `verify-figures` figure metadata and captions; `verify-completeness`
+presence and traceability only). Report findings keyed `artifact:path:field` so a downstream
+agent can **reference** your finding instead of re-filing it.
+
 ## Provenance of Claims (BINDING)
 
 State, for every finding, whether you **verified it at time of writing** or **inherited it from
@@ -49,6 +99,49 @@ Three times in one 2026-08 session a track reported a defect a sibling had alrea
 naive `grep -i` matched text *inside a negation* and read as unfixed. Mark inherited claims
 `[INHERITED — not re-verified]` and re-verify before assigning severity. A report that narrows
 its own claim after checking is more trustworthy than one that never needed to.
+
+## Defect Locus (BINDING — required report field, one per finding)
+
+Every finding you report — CRITICAL, WARNING, or INFO — carries one line:
+
+```
+NUMBER_EFFECT: YES | NO | UNKNOWN
+NUMBER_PATH: <artifact/field/table/figure>     # REQUIRED when YES
+why: <one line>                                # REQUIRED when NO
+```
+
+**What the field means.** `YES` = a number a reader could see is wrong, or would become
+wrong, because of this defect — a locked table cell, a registry row, a figure value, a
+reported estimate. `NO` = the defect is real but lives in the assurance layer (a guard
+that cannot fire, a self-test that proves nothing, a provenance stamp that is not read);
+fixing it changes no reported number. `UNKNOWN` = you could not determine which.
+
+**Why it exists.** A review panel is a discovery instrument with no stopping rule. On the
+run that produced this contract, six rounds gave CRITICAL counts of 40 → 15 → 26 → 11 →
+22 → ~30 — each round largely finding the previous round's fixes, with no downward trend.
+The iteration gate correctly forced another round after every RED and correctly
+could not tell *"the last round found what matters"* from *"the last round found its own
+siblings."* This field is what lets the loop terminate on evidence: iteration continues
+while any finding reaches a reported number, and stops when none does.
+
+**Three rules, each earned by a way this went wrong:**
+
+1. **You classify; the orchestrator never does.** The gate verifies the label's presence,
+   never its truth. If an orchestrator could assign it, an orchestrator under pressure to
+   clear Phase 5.5 would relabel a number-affecting defect as assurance-layer and the loop
+   would end on a rewrite rather than on evidence. Reclassifying your label requires an
+   independent reviewer or a recorded PI decision.
+2. **`UNKNOWN` is a real answer and it is fail-closed.** It keeps the loop open exactly as
+   `YES` does. Do not guess `NO` to be helpful — an honest `UNKNOWN` costs one more round;
+   a wrong `NO` ships a wrong number.
+3. **`NO` still means the defect is real.** It is not a downgrade and not a dismissal. It
+   says only *"repairing this changes no reported number"*, which is what makes it safe to
+   ship as a documented known issue rather than to keep iterating on.
+
+**Honest limit.** This is a countable proxy for ownership and unresolved ambiguity, not a
+mechanical determination of scientific locus. A label that is present but wrong slips past
+by construction — which is precisely why the classification belongs to the reviewer who
+read the code, and why `UNKNOWN` must stay cheap to say.
 
 ## Measurement-Derived Constants (BINDING — trace every literal to its instrument)
 
@@ -190,6 +283,38 @@ Reading codebooks, data dictionaries, design documents, and the analysis scripts
 - **Sensitivity analysis**: E-values for causal claims; Rosenbaum bounds for matching; Oster's delta for omitted variable bias
 - **Model fit reporting**: R-squared, AIC/BIC, log-likelihood as appropriate for model type
 - **Complete coefficient table**: All control coefficients reported (or noted as available in appendix)
+
+## Machine-Readable Verdict (BINDING)
+
+Your report is read by a gate, not only by a human. It decides whether the fix loop
+continues, and it decides that by parsing ONE line from your report.
+
+**End your report with a verdict line, at line start, in exactly this form:**
+
+```
+STATUS=RED
+```
+or
+```
+STATUS=GREEN
+```
+
+- `STATUS=RED` — you found issues that are not yet resolved. Any CRITICAL or unresolved
+  ERROR means RED.
+- `STATUS=GREEN` — you re-verified and nothing unresolved remains in your dimension.
+
+The `STATUS: RED` (colon) and `**STATUS: RED**` (bolded) spellings are also accepted, but
+`STATUS=RED` is canonical — use it.
+
+**Why this is binding.** The gate is fail-closed: a report whose verdict it cannot parse
+is treated as `verdict_unparseable` and REDs the whole round (`REASON=verdict_unparseable`).
+It does NOT guess from your prose, and it does NOT default to pass. Omitting the line, or
+inventing a spelling, stalls the pipeline for every dimension — not just yours.
+
+**Do not place a bare `STATUS=` line anywhere else in the report.** If you quote another
+gate's output (e.g. `some-other-gate.sh: STATUS=GREEN`), keep it inline in a sentence or
+indented inside a fenced block, never at line start. A failing token anywhere outranks a
+passing one, so a quoted `STATUS=RED` from some other tool would flip your verdict.
 
 ## Output Format
 

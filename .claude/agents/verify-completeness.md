@@ -181,6 +181,31 @@ APPENDIX CHECKLIST:
 - [ ] SI/Extended Data items match journal requirements
 ```
 
+## Artifact Prose Fields — presence and traceability ONLY (BINDING)
+
+Your slice is deliberately narrow: confirm that every artifact carrying a claim-bearing
+prose field (`estimand`, `verdict`, `*_NOTE`, arm inventory) is **present, indexed, and
+traceable to a producing script**.
+
+**Do NOT adjudicate semantic correctness** — whether a verdict is true belongs to
+`verify-logic`, tabular notes to `verify-numerics`, captions to `verify-figures`. Your
+finding is "this claim-bearing field has no producer / is not indexed / is orphaned",
+which is exactly the gap that lets a `must_ship` document with no producer go stale
+undetected.
+
+**Boundary.** The `review-code-*` agents own PRODUCER semantics — how the field is computed,
+its branch coverage, schema, missing-state and fail-closed behaviour. You own the EMITTED
+VALUE: whether what the artifact actually says agrees with its supporting data and with how
+the manuscript uses it. If a producer-side finding already exists for the same
+`artifact:path:field`, **reference it — do not re-file it**. Key your own findings the same
+way so the next agent can do likewise.
+
+**Why this pass exists.** These strings are lifted into manuscripts verbatim and arrive
+pre-written, so they get less scrutiny than the numbers beside them. Until now nothing read
+them: the `review-code-*` agents read code, and this panel read the manuscript against
+tables. On the source run a retracted claim was removed from the code thoroughly and still
+shipped inside an ESTIMAND string; separately, a headline verdict asserted a conclusion in
+the same breath as its own parenthetical reporting `NA`, at `rc=0`, with every gate green.
 ## Calibration
 
 - **Missing artifact (referenced but no file/content)** — CRITICAL

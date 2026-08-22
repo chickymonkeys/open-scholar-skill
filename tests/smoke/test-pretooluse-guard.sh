@@ -1388,6 +1388,34 @@ bgp_chk 0 "Write normal manuscript (not sidecar)" \
   "$(bgp_write "$BGP/manuscript.md" "edited body text")"
 bgp_chk 0 "Bash default-open (no dump verb)" "$(bgp_bash 'file data/raw/x.csv')"
 
+# ─── Interpreter row-dump with a SPACED sensitive path (2026-08-16) ─────────────────────
+# Every case above uses `data/raw/x.csv` — no space — which is why this class was never
+# caught. On a real Dropbox / "My Drive" path, an `Rscript -e` / `python3 -c` row dump
+# reached the guard as ONE shlex token (the whole code string, not a path) while the
+# historical whitespace split shredded the path at the space, so no pass yielded it,
+# bash_first_sensitive_target came back empty, and the Bash arm exited 0 BEFORE the
+# dump-verb check ran — even though that check matches print(head(d)) / .head(.
+# The identical command on a space-free path was (and is) blocked. Fix: tokenizer pass 4
+# extracts quoted string literals from inside code arguments (additive only).
+BGPS="$TMPDIR_BASE/bash gate spaced"        # deliberate space in the directory name
+mkdir -p "$BGPS/data/raw"; printf 'a,b\n1,2\n' > "$BGPS/data/raw/x.csv"
+bgps_bash() { jq -n --arg c "$1" --arg cwd "$BGPS" \
+  '{session_id:"t",transcript_path:"",cwd:$cwd,hook_event_name:"PreToolUse",tool_name:"Bash",tool_input:{command:$c}}'; }
+bgps_chk() { local want="$1" desc="$2" pl="$3" rc; rc=$(run_guard_capture "$pl")
+  if [ "$rc" = "$want" ]; then pass "$desc (exit $rc)"; else fail "$desc — want $want got $rc"; fi; }
+SP="$BGPS/data/raw/x.csv"
+# BLOCK: row dumps through the interpreter channel on a spaced path
+bgps_chk 2 "SPACED R -e print(head(d))"    "$(bgps_bash "Rscript -e 'd<-read.csv(\"$SP\"); print(head(d))'")"
+bgps_chk 2 "SPACED R -e print(d)"          "$(bgps_bash "Rscript -e 'd<-read.csv(\"$SP\"); print(d)'")"
+bgps_chk 2 "SPACED py -c .head()"          "$(bgps_bash "python3 -c \"import pandas as pd; print(pd.read_csv('$SP').head())\"")"
+bgps_chk 2 "SPACED py -c .to_string()"     "$(bgps_bash "python3 -c \"import pandas as pd; print(pd.read_csv('$SP').to_string())\"")"
+# ALLOW: the sanctioned aggregate channel must keep working on the same spaced path
+bgps_chk 0 "SPACED R -e cat(nrow(d))"      "$(bgps_bash "Rscript -e 'd<-read.csv(\"$SP\"); cat(nrow(d))'")"
+bgps_chk 0 "SPACED py -c print(len(df))"   "$(bgps_bash "python3 -c \"import pandas as pd; print(len(pd.read_csv('$SP')))\"")"
+bgps_chk 0 "SPACED R -e print(summary(d))" "$(bgps_bash "Rscript -e 'd<-read.csv(\"$SP\"); print(summary(d))'")"
+# NO NEW FALSE POSITIVE: a quoted literal that names no real file must not block
+bgps_chk 0 "SPACED literal names no file"  "$(bgps_bash "Rscript -e 'x<-\"$BGPS/data/raw/does-not-exist.csv\"; print(head(mtcars))'")"
+
 # ─── Summary ────────────────────────────────────────────────────────────
 echo ""
 echo "════════════════════"

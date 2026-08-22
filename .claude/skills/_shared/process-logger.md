@@ -12,17 +12,21 @@ Every `/scholar-*` skill run MUST leave a transparent, auditable trace of **what
 
 ```
 ${OUTPUT_ROOT}/logs/trace-<skill>-<YYYY-MM-DD>.ndjson     # append-only, one record per step
-${OUTPUT_ROOT}/logs/process-log-<skill>-<YYYY-MM-DD>.md   # rendered view (generated)
+${OUTPUT_ROOT}/logs/process-log-<skill>-<YYYY-MM-DD>.md   # rendered markdown view (generated)
+${OUTPUT_ROOT}/logs/trace-html/index.html                 # rendered HTML view (generated, optional)
+${OUTPUT_ROOT}/logs/transcript-html/<session-id>/         # RAW session transcript (optional, gated)
 ```
 
 Record schema (written by `emit-trace.sh`; you never hand-author these):
 
 ```json
-{"ts","seq","run_id","skill","phase","agent","agentId","step",
+{"ts","seq","run_id","skill","phase","agent","agentId","session_id","step",
  "reasoning","action","observation","refs":[...],"status"}
 ```
 
 Required per record: `skill`, `step`, and **≥1 non-empty of** `{reasoning, action, observation}`. A well-formed step carries all three.
+
+`session_id` is auto-derived from `$CLAUDE_CODE_SESSION_ID` (null under a Codex host or a bare runner) and needs no caller action. It is what lets the HTML view deep-link a step to the raw session transcript — see **Visual inspection** below. It is deliberately *not* in `trace-coverage-check.sh`'s required set: that gate asserts the required fields are a **subset** of a record's keys, so adding a field never retroactively REDs an older trace.
 
 ---
 
@@ -62,6 +66,51 @@ bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "$OUTPUT_RO
 ```
 
 The rendered `process-log-<skill>-<date>.md` carries the columns `# | Time | Phase | Agent | Step | Reasoning | Action | Observation | Refs | Status`. Do not hand-edit it — re-render from the trace instead.
+
+---
+
+## Visual inspection — two HTML views
+
+The markdown log is the portable, greppable view — treat its shape as a contract, since provenance gates grep it rather than parse the NDJSON. For reading a long run, two HTML views exist. Neither is required by any gate; both are read-only conveniences.
+
+**1. The curated pipeline view** — the trace, rendered as a filterable timeline: phases as sections, per-step RAO cards, colour-coded `ok`/`fail`/`skipped` badges, agent + `agentId`, and `refs[]` as live links into the project.
+
+```bash
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace-html.sh" --proj "$PROJ"
+# -> PROJ/logs/trace-html/index.html   (merges every logs/trace-*.ndjson)
+```
+
+Self-contained: inline CSS/JS, no CDN, no network. Same privacy posture as the trace itself — it renders only fields C-01 already binds to aggregates.
+
+**2. The raw session transcript** — what *actually* happened, including every tool call and its verbatim result. Rendered from Claude Code's session JSONL via `claude-code-transcripts` (run through `uvx`; nothing to install).
+
+```bash
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-session-transcript.sh" "$PROJ"
+# -> PROJ/logs/transcript-html/<session-id>/index.html
+# --list shows available sessions; --latest / --all / --session <id> pick them;
+# --dry-run reports the safety decision without rendering.
+```
+
+**This one is gated, and the asymmetry is the point.** A session transcript reproduces tool *results* verbatim — including the stdout of every LOCAL_MODE analysis heredoc — so it is the one artifact that can leak what `pretooluse-data-guard.sh` exists to contain. The guard controls what may be *read*; it cannot un-record a value already in the transcript. Therefore:
+
+- **Local render** — always allowed (the JSONL is already on this disk). A loud stderr WARN names every non-`CLEARED` sidecar entry so you know what the HTML may contain.
+- **`--gist`** — REFUSED (exit 3) unless *every* `.claude/safety-status.json` entry reads `CLEARED`. A missing or unparseable sidecar counts as not-cleared (fail closed). `--force` does not unlock it; nothing does.
+- The output directory writes its own `.gitignore` (`*` + `!.gitignore`), so a rendered transcript cannot be committed by an incautious `git add -A` under any `OUTPUT_ROOT`. It lives under `logs/`, which replication packages do not ship.
+- A local render is still a file on disk: if the project sits in a synced folder (Dropbox/Drive/iCloud), "local" means "synced to your provider".
+
+**3. The whole run** — the two views above cover one skill's steps and one session's tool calls. To see an entire pipeline — every phase, gate, agent dispatch, excuse, lock generation and artifact — build the run model and render it:
+
+```bash
+bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-run-html.sh" "$PROJ" --with-transcripts
+# -> PROJ/logs/run-model.json   (normalized, versioned; the contract)
+# -> PROJ/logs/run-html/index.html
+```
+
+It reads both orchestrators (full-paper's `_PSTATE_SEQUENCE`, auto-research's `phase-contract.json`), draws route-back arcs where the run looped, collects every excuse/force-complete/halt/bypass into one Anomalies panel, and opens with a banner naming whatever it could not show. `--with-transcripts` renders the raw sessions first so the per-step deep links are live.
+
+**Live monitoring.** You do not have to run this by hand: `refresh-run-html.sh` is wired into both state machines' phase-boundary commands, so `logs/run-html/index.html` refreshes itself as a run advances. To watch it in a browser tab, export `SCHOLAR_RUN_HTML_REFRESH=20` before starting the run and the page will reload itself every 20 seconds. `SCHOLAR_RUN_HTML_AUTO=0` turns the whole thing off. The hooks always exit 0 and print nothing, so they cannot affect a gate.
+
+**Cross-link.** Run both and each step in view 1 becomes a live link into view 2 at the matching session — scan the phase timeline, spot the RED gate, click through to the tool call that produced it. Steps whose session has not been rendered show the id as inert text instead.
 
 ---
 

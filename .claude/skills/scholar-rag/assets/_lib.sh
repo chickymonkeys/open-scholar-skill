@@ -10,9 +10,17 @@
 ASSETS="$(cd "$(dirname "${BASH_SOURCE:-$0}")" && pwd)"
 
 # Load .env from the plugin root if present (optional convenience only).
+# `set -a` is load-bearing: .env lines are bare VAR="value" with no `export`, so sourcing
+# them alone makes SHELL variables that child processes never see. Every knob documented
+# as .env-configurable (SCHOLAR_ZOTERO_DIR, EMBED_MODEL, RAG_GRAPH_*, RAG_CITE_*,
+# SCHOLAR_CROSSREF_EMAIL, OLLAMA_HOST) was therefore inert for the Python engine, and
+# zotero_reader silently fell through to auto-detection no matter what was configured.
+# SCHOLAR_RAG_DIR appeared to work only because it is explicitly re-exported below.
+set -a
 for _envf in "${SCHOLAR_SKILL_DIR:-}/.env" "$HOME/.claude/.env"; do
   [ -n "$_envf" ] && [ -f "$_envf" ] && . "$_envf" 2>/dev/null || true
 done
+set +a
 unset _envf
 
 # User-scoped store (cross-project). Sibling of ~/.claude/scholar-knowledge.

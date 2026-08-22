@@ -150,3 +150,27 @@ Raw source: [file path]
 - **Variable label mismatch** — WARNING
 - **Untraceable table** — CRITICAL (cannot verify at all)
 - **Transformation error (e.g., wrong exponentiation)** — CRITICAL
+
+## Artifact Prose Fields — tabular numeric/note fields (BINDING)
+
+Your slice: **`*_NOTE` columns and any human-readable cell that travels beside a number** in
+the raw outputs you already compare against manuscript tables.
+
+For each such field, check that (a) the sentence's numbers match the row it sits on, and
+(b) it does not assert a value the row reports as `NA`/absent. A note reading "N of M rows
+clear the threshold" where the underlying column is missing or NA is the defect — the
+sentence must refuse to assert, not emit with a hole in it.
+
+**Boundary.** The `review-code-*` agents own PRODUCER semantics — how the field is computed,
+its branch coverage, schema, missing-state and fail-closed behaviour. You own the EMITTED
+VALUE: whether what the artifact actually says agrees with its supporting data and with how
+the manuscript uses it. If a producer-side finding already exists for the same
+`artifact:path:field`, **reference it — do not re-file it**. Key your own findings the same
+way so the next agent can do likewise.
+
+**Why this pass exists.** These strings are lifted into manuscripts verbatim and arrive
+pre-written, so they get less scrutiny than the numbers beside them. Until now nothing read
+them: the `review-code-*` agents read code, and this panel read the manuscript against
+tables. On the source run a retracted claim was removed from the code thoroughly and still
+shipped inside an ESTIMAND string; separately, a headline verdict asserted a conclusion in
+the same breath as its own parenthetical reporting `NA`, at `rc=0`, with every gate green.

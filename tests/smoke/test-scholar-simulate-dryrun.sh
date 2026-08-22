@@ -400,7 +400,16 @@ fi
 # those quarantined extras are absent (the default CI state) this SKIPs; it is never a FAIL. A true
 # live PROVIDER run remains DEFERRED (no keys/deps); only the offline graph loop is exercised here.
 echo "Stage 7 (optional): offline fake-chat live seam"
-if python3 -c "import langgraph, langchain_core" >/dev/null 2>&1; then
+# The guard must test what the RUNNER imports, not a proxy for it. It previously checked only
+# `langgraph, langchain_core` — 2 of the 3 requirements — so a PARTIAL install (langgraph present,
+# no SqliteSaver backend) fell through to the live path and reported FAIL where this block plainly
+# intends SKIP. interactive_runner.py:258-264 needs a SqliteSaver from EITHER layout, so probe both
+# exactly as it does.
+if python3 -c "import langgraph, langchain_core
+try:
+    from langgraph.checkpoint.sqlite import SqliteSaver
+except ImportError:
+    from langgraph_checkpoint_sqlite import SqliteSaver" >/dev/null 2>&1; then
   SCKPT="$TMP/seamck"
   SMANIFEST="$TMP/interactive-seam.json"
   cat > "$SMANIFEST" <<JSON
@@ -421,7 +430,20 @@ JSON
     no "I9.fake-chat-seam (rc=$rc; expected graph.sqlite + non-empty transcripts + live validation.json)"
   fi
 else
-  echo "  SKIP: I9.fake-chat-seam (langgraph/langchain-core not installed — live graph loop deferred)"
+  # Name the ACTUAL missing import. Saying "langgraph/langchain-core" when the gap is the
+  # SqliteSaver backend sends the reader after a package that is already installed.
+  _i9_missing=$(python3 -c "
+import importlib
+for m in ('langgraph','langchain_core'):
+    try: importlib.import_module(m)
+    except ImportError: print(m); raise SystemExit
+try: importlib.import_module('langgraph.checkpoint.sqlite')
+except ImportError:
+    try: importlib.import_module('langgraph_checkpoint_sqlite')
+    except ImportError: print('SqliteSaver backend (langgraph.checkpoint.sqlite / langgraph_checkpoint_sqlite)')
+" 2>/dev/null)
+  echo "  SKIP: I9.fake-chat-seam (${_i9_missing:-interactive extras} not installed — live graph loop deferred)"
+  unset _i9_missing
 fi
 
 # --- dry-run receipt enforcement (R1–R5; pre-execution-review protocol) ----

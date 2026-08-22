@@ -724,6 +724,56 @@ if env:
 PY
   fi
 
+  # (4) INNER-STRING-LITERAL pass (2026-08-16, found on an end-to-end run).
+  #     Purely ADDITIVE like passes 1 and 3.
+  #
+  #     WHY: an interpreter call — `Rscript -e '…read_dta("/a b/data/raw/x.dta")…
+  #     print(head(d))'` — reaches pass 1 as ONE shlex token (the whole R
+  #     expression), which is not a path; and the historical pass below shreds
+  #     `/a b/…` at the space. So a SENSITIVE PATH WITH A SPACE, quoted INSIDE
+  #     the code argument, was yielded by NO pass. `bash_first_sensitive_target`
+  #     came back empty and the Bash arm exited 0 before `bash_command_is_dump`
+  #     was ever consulted — even though that dump regex DOES match
+  #     `print(head(d))` and `.head(` (verified: the identical command with a
+  #     space-free path is blocked). Every Dropbox / Google-Drive / "My Drive"
+  #     path carries a space, so this was the common case, not an edge — and it
+  #     sat on the guard's own "sanctioned LOCAL_MODE channel", i.e. the one
+  #     place a row dump is most likely to be written. DC-11: the check that
+  #     would have blocked could not see its input, and permitted.
+  #
+  #     WHAT: pull every quoted string literal ("…" / '…') out of the command's
+  #     shlex tokens that themselves contain quotes (i.e. code arguments), and
+  #     emit each literal as a candidate token. Only literals containing a '/'
+  #     are emitted, so ordinary string constants add nothing. The existence
+  #     gate downstream still applies, so a literal that names no real file
+  #     cannot block anything (no new false positives). Nothing that matched
+  #     before can stop matching: this pass only ADDS tokens.
+  if command -v python3 >/dev/null 2>&1; then
+    case "$cmd" in
+      *\"*|*\'*)
+        python3 - "$cmd" <<'PY' 2>/dev/null
+import re, shlex, sys
+cmd = sys.argv[1]
+try:
+    parts = shlex.split(cmd, posix=True)
+except Exception:
+    parts = [cmd]
+seen = set()
+# Double- or single-quoted literal, backslash-escape aware. Two alternatives only.
+lit = re.compile(r'"((?:[^"\\]|\\.)*)"' r"|'((?:[^'\\]|\\.)*)'")
+for t in parts:
+    if '"' not in t and "'" not in t:
+        continue          # not a code argument; passes 1/2 already cover it
+    for m in lit.finditer(t):
+        s = next((g for g in m.groups() if g is not None), "")
+        s = s.strip()
+        if "/" in s and s not in seen:
+            seen.add(s); print(s)
+PY
+        ;;
+    esac
+  fi
+
   # Historical pass: shell punctuation -> space (KEEP '/' and '$'), then squeeze
   # whitespace runs into newlines so tokens split exactly as they did before.
   # printf '%s\n' (NOT '%s'): the output stream MUST end with a newline. The
@@ -916,7 +966,19 @@ inspect_sidecar_write() {
     cur=""
     [ -f "$sidecar" ] && cur="$(jq -r --arg k "$key" '(.[$k] // empty) | if type=="string" then . else empty end' "$sidecar" 2>/dev/null || true)"
     suspect=0
-    case "$cur" in NEEDS_REVIEW:RED|HALTED) suspect=1 ;; esac
+    # LOCAL_MODE belongs here for internal consistency: the Read arm of THIS
+    # SAME script already treats LOCAL_MODE as restricted and blocks it
+    # ("honors CLEARED/ANONYMIZED/OVERRIDE as allow; LOCAL_MODE/HALTED/
+    # NEEDS_REVIEW:* as block"). Omitting it here meant one status was
+    # "restricted" for reading and "not restricted" for promotion, so a
+    # hand-edited sidecar could unlock respondent-level reads with no review
+    # provenance. The scan fallback below only catches data that is sensitive by
+    # PATTERN; it cannot see data restricted by POLICY — a DUA / restricted-use
+    # microdata extract that is de-identified enough to scan clean is exactly the
+    # case LOCAL_MODE exists for, and exactly the case that slipped through.
+    # Downgrades and LOCAL_MODE/ANONYMIZED/HALTED writes remain allowed, and
+    # '/scholar-init review' provenance still clears it (checked below).
+    case "$cur" in NEEDS_REVIEW:RED|HALTED|LOCAL_MODE) suspect=1 ;; esac
     if [ "$suspect" = 0 ] && [ -e "$key" ] && [ -f "$GATE_SCRIPT" ]; then
       bash "$GATE_SCRIPT" "$key" >/dev/null 2>&1
       [ "$?" = 1 ] && suspect=1                        # safety-scan RED

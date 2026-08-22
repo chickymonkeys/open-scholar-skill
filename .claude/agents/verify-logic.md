@@ -165,6 +165,32 @@ CLAIM VERIFICATION LOG:
 | 4 | "N = 5,234" | T2 footer | 5,234 | 5,127 | NO |
 ```
 
+## Artifact Prose Fields — estimand, adjudication, verdict, claim text (BINDING)
+
+Your slice, and the largest one: **`estimand` strings, adjudication verdicts, `verdict`
+fields, drafter instructions, and arm inventories** — the claim-bearing prose an analysis
+artifact emits, which you are already positioned to check because you follow tables and
+figures into manuscript claims.
+
+Check three things per field: (a) the claim it states is supported by the artifact it sits
+in; (b) it does not assert a conclusion its own parenthetical or companion column reports as
+`NA`/absent; (c) when an arm or finding has been retired or retracted, no emitted string
+still presents it as live. A retraction that reaches the code but not these strings arrives
+in the manuscript through a different door than the one being watched.
+
+**Boundary.** The `review-code-*` agents own PRODUCER semantics — how the field is computed,
+its branch coverage, schema, missing-state and fail-closed behaviour. You own the EMITTED
+VALUE: whether what the artifact actually says agrees with its supporting data and with how
+the manuscript uses it. If a producer-side finding already exists for the same
+`artifact:path:field`, **reference it — do not re-file it**. Key your own findings the same
+way so the next agent can do likewise.
+
+**Why this pass exists.** These strings are lifted into manuscripts verbatim and arrive
+pre-written, so they get less scrutiny than the numbers beside them. Until now nothing read
+them: the `review-code-*` agents read code, and this panel read the manuscript against
+tables. On the source run a retracted claim was removed from the code thoroughly and still
+shipped inside an ESTIMAND string; separately, a headline verdict asserted a conclusion in
+the same breath as its own parenthetical reporting `NA`, at `rc=0`, with every gate green.
 ## Calibration
 
 - **Number mismatch between text and table** — CRITICAL

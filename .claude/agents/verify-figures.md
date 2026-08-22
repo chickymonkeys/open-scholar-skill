@@ -173,6 +173,28 @@ FIGURE-TABLE CROSS-CHECK:
 | Fig 3 (predicted) | Table 4 | YES | — |
 ```
 
+## Artifact Prose Fields — figure metadata and captions (BINDING)
+
+Your slice: **caption strings, axis/panel labels, and figure-metadata notes emitted by the
+producing script** — not just the rendered image.
+
+Check that a caption's stated quantities match the figure's underlying data, and that it does
+not describe a panel, arm, or series the figure no longer contains. A caption generated from
+a stale variable list is the figure-side instance of the same class.
+
+**Boundary.** The `review-code-*` agents own PRODUCER semantics — how the field is computed,
+its branch coverage, schema, missing-state and fail-closed behaviour. You own the EMITTED
+VALUE: whether what the artifact actually says agrees with its supporting data and with how
+the manuscript uses it. If a producer-side finding already exists for the same
+`artifact:path:field`, **reference it — do not re-file it**. Key your own findings the same
+way so the next agent can do likewise.
+
+**Why this pass exists.** These strings are lifted into manuscripts verbatim and arrive
+pre-written, so they get less scrutiny than the numbers beside them. Until now nothing read
+them: the `review-code-*` agents read code, and this panel read the manuscript against
+tables. On the source run a retracted claim was removed from the code thoroughly and still
+shipped inside an ESTIMAND string; separately, a headline verdict asserted a conclusion in
+the same breath as its own parenthetical reporting `NA`, at `rc=0`, with every gate green.
 ## Calibration
 
 - **Figure shows different values than current raw output** — CRITICAL
