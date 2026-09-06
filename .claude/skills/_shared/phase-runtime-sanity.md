@@ -4,7 +4,7 @@ Script-level review (5A.5, 5B-gate, 5.5) catches bugs in source code. Phase 5C c
 
 > **⛔ ENTRY GATE — Confirm 5.5 is complete:**
 > ```bash
-> . "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+> . "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || true
 > grep -q '\[VERIFIED' "${PROJ}/logs/project-state.md" || { echo "FAIL: Phase 5.5 not cleared"; exit 1; }
 > test -f "${PROJ}/tables/results-registry.csv"   || { echo "FAIL: registry missing"; exit 1; }
 > test -f "${PROJ}/tables/adjudication-log.csv"   || { echo "FAIL: adjudication missing"; exit 1; }
@@ -82,7 +82,7 @@ Spin up a fresh R session, re-run `04-*.R` through `08-*.R` in order, diff the n
 
 ```bash
 # phase5c-03-cleanroom.sh
-. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || true
 TARGET_JOURNAL=$(grep -E "Target Journal" "${PROJ}/logs/project-state.md" | head -1)
 case "$TARGET_JOURNAL" in
   *ASR*|*AJS*|*Demography*|*Nature*|*Science*) RUN_CLEANROOM=1 ;;

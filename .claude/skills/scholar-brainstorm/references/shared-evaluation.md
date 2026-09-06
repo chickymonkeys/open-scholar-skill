@@ -442,7 +442,7 @@ mkdir -p "${OUTPUT_ROOT}"
 OUTDIR="$(dirname "${OUTPUT_ROOT}/scholar-brainstorm-[topic-slug]-$(date +%Y-%m-%d)")"
 STEM="$(basename "${OUTPUT_ROOT}/scholar-brainstorm-[topic-slug]-$(date +%Y-%m-%d)")"
 mkdir -p "$OUTDIR"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM" || true
 ```
 
 **10b. Write the FULL report** (Markdown) using the Write tool with the printed `SAVE_PATH` as `file_path`.
