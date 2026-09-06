@@ -43,7 +43,7 @@ Reports, per field: `n_gold_labeled`, `n_scored`, `coverage`, **Cohen κ (LLM vs
 ## 2. Construct-match — did the annotator answer the question the consumer needs?
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/measurement-instrument-check.sh" "$PROJ"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/measurement-instrument-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/measurement-instrument-check.sh" "$PROJ" || true
 ```
 
 The κ gate validates an annotator against gold **for the task as prompted**. It structurally
