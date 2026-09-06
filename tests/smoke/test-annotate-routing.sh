@@ -81,11 +81,20 @@ done
 IDX="$(mktemp -t skillrefs.XXXXXX)"; trap 'rm -f "$IDX"' EXIT
 grep -roE "(${SKILL_NAMES})" "$SK" --include="*.md" 2>/dev/null \
   | sed "s|^${SK}/||" > "$IDX"
+# ── Allow-list: standalone, user-invocable skills with no pipeline seat by design. ──
+# scholar-replication-archives is a discovery knowledge layer: it returns cited
+# repository findings to the caller and is invoked only by the user, never by
+# another skill (no skill routes work to it). That is the opposite of the
+# absorb/replace/own claim this sweep guards against, so it must not be judged an
+# orphan. Keep this list TINY and justified; a skill that belongs to a pipeline
+# does NOT belong here.
+ORPHAN_EXEMPT="scholar-replication-archives"
 ORPHANS=0
 for d in "$SK"/*/; do
   s="$(basename "$d")"
   [ "$s" = "_shared" ] && continue
   [ -f "${d}SKILL.md" ] || continue
+  case " $ORPHAN_EXEMPT " in *" $s "*) continue ;; esac
   # a reference to $s from any file NOT under $s/ makes it reachable
   if ! grep -E ":${s}\$" "$IDX" | grep -qv "^${s}/"; then
     echo "       ORPHAN: $s is referenced by no other skill — reachable only by direct invocation"
@@ -93,7 +102,7 @@ for d in "$SK"/*/; do
   fi
 done
 [ "$ORPHANS" -eq 0 ] \
-  && pass "no orphan skills: every skill is reachable from at least one other skill" \
+  && pass "no orphan skills: every skill is reachable from at least one other skill (exempt:${ORPHAN_EXEMPT:- none})" \
   || fail "$ORPHANS orphan skill(s) — unreachable from any pipeline, so their gates never run"
 
 # ---- 4. the orchestrator can reach it (only where an orchestrator ships) ---------
