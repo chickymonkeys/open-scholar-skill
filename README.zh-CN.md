@@ -4,7 +4,7 @@
 
 [English](README.md) | **简体中文**
 
-# Open Scholar Skill — 面向 Claude Code 的学术论文写作套件
+# Open Scholar Skill — 面向 Claude Code 与 Codex 的学术研究技能套件
 
 > **Copyright (c) 2025-2026 Open Scholar Skill Contributors**
 > 依据 [Open Scholar Skill License (Academic Use)（学术用途许可）](LICENSE)，本项目可免费用于学术、教育及非商业研究用途。
@@ -121,7 +121,7 @@ cd ~/research/nhanes-bmi
 
 > **商标声明：** 上文及本项目各处列出的期刊名称均为其各自出版方的商标，此处仅用于标识与格式化目的。本项目与任何期刊或出版方均无隶属或背书关系。
 
-## 技能总览 (34 个技能 + 1 个实用工具 = 共 35 个)
+## 技能总览 (35 个技能 + 1 个实用工具 = 共 36 个)
 
 ### 研究流程（编排器）
 
@@ -159,6 +159,7 @@ cd ~/research/nhanes-bmi
 | `scholar-eda` | `/scholar-eda` | 探索性数据分析、缺失数据、数据清洗、预分析计划 |
 | `scholar-causal` | `/scholar-causal` | 因果推断工具箱：DAG、13 种识别策略（OLS、DiD、交错 DiD、RD、IV、FE、匹配、合成控制、中介分析、DML、因果森林、bunching、Bartik IV）+ 分布性方法、敏感性分析 |
 | `scholar-compute` | `/scholar-compute` | 11 个模块化模块：NLP/文本即数据、机器学习、网络/GNN、ABM、计算机视觉、LLM 工作流、合成数据、地理空间、音频、life2vec |
+| `scholar-annotate` | `/scholar-annotate` | 规模化的 LLM 标注：编码簿设计、开发集/黄金集、DSPy 提示优化、κ ≥ 0.70 硬性信度门槛、Batch/本地/HPC 扩展，以及蒸馏为轻量分类器 |
 | `scholar-simulate` | `/scholar-simulate` | 规模化的 LLM 社会模拟：硅基抽样、生成式 ABM、问卷/情境/联合实验、观点动力学。自带真实执行引擎（多提供商 Batch API + 本地异步并发），而非上下文内代码片段；多提供商支持（Anthropic/OpenAI/开源/本地）。**任何可发表结论之前必须完成与人类数据的保真度验证**——模拟受访者不能替代人类数据。 |
 | `scholar-open` | `/scholar-open` | 预注册、数据共享、代码打包、开放获取 |
 | `scholar-replication` | `/scholar-replication` | 构建、记录、测试、核验并归档符合期刊要求的复现包（EDA 输出、工件登记、格式核验） |
@@ -229,7 +230,7 @@ bash setup.sh
 1. 创建符号链接（`skills/` → `.claude/skills/`，`agents/` → `.claude/agents/`）
 2. 自动检测你的 Zotero 库（或提示输入路径）
 3. 按需配置 BibTeX、EndNote 与 CrossRef 邮箱
-4. 将全部 34 个技能 + 20 个智能体作为**个人技能**安装到 `~/.claude/skills/` 与 `~/.claude/agents/`——逐条安装，与已有个人技能并存
+4. 将全部 36 个技能（35 个研究技能 + `sync-docs` 实用工具）+ 20 个智能体作为**个人技能**安装到 `~/.claude/skills/` 与 `~/.claude/agents/`——逐条安装，与已有个人技能并存
 5. 在 `~/.claude/settings.json` 中注册 PreToolUse 数据安全钩子（幂等；保留现有设置）
 6. 检查 `jq` 与 `python3`（数据安全钩子的必要依赖）
 7. 写入包含你的配置的 `.env` 文件

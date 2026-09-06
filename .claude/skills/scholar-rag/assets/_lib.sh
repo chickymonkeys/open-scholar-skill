@@ -42,10 +42,17 @@ rag_py() { "$RAG_PY" "$ASSETS/$1" "${@:2}"; }
 # emit-trace.sh). One JSON object per line under the store's logs/.
 rag_trace() {
   # usage: rag_trace <step> <status ok|fail|skipped> <observation...>
-  local step="$1" status="$2"; shift 2 || true
+  # NOTE: the second local is `st`, NOT `status`. This file is SOURCED, so it
+  # runs in the caller's interactive shell — zsh on macOS — where $status is a
+  # read-only alias for $?, and `local status=...` aborts the function. The
+  # trailing `|| true` swallowed the error, so the function returned rc=0 while
+  # writing nothing: traces survived only from bash-invoked callers
+  # (mcp-setup.sh / setup-venv.sh / build-all.sh), which is why the log held
+  # mcp-setup records and no query or ingest records. Do not rename this back.
+  local step="$1" st="$2"; shift 2 || true
   local log="$SCHOLAR_RAG_DIR/logs/trace-scholar-rag.ndjson"
   mkdir -p "$SCHOLAR_RAG_DIR/logs"
-  "$RAG_PY" - "$step" "$status" "$*" <<'PY' 2>/dev/null >>"$log" || true
+  "$RAG_PY" - "$step" "$st" "$*" <<'PY' 2>/dev/null >>"$log" || true
 import sys, json, time
 step, status, obs = sys.argv[1], sys.argv[2], sys.argv[3]
 print(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

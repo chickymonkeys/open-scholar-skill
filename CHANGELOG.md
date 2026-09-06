@@ -3,7 +3,17 @@
 All notable changes to open-scholar-skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased] - 2026-08-28
+## [Unreleased]
+
+## [5.22.0] - 2026-09-06
+
+### Fixed: scholar-rag `_lib.sh` — `rag_trace` wrote nothing when called from zsh
+
+The function is sourced into the caller's shell; under zsh `$status` is a read-only alias of `$?`, so `local status=…` aborted it and the trailing `|| true` hid the failure. Renamed to `st` (ported from dev `0956e9c`).
+
+### Changed: README / README.zh-CN / plugin description — 36 skills (35 research skills + `sync-docs`), `scholar-annotate` row added; wording "academic research skills for Claude Code and Codex"
+
+### Ported earlier (recorded under this release, dated 2026-08-28 when the work landed):
 
 ### Added: scholar-auto-research F20/L4 — production completion authority (ported from dev)
 

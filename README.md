@@ -4,7 +4,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-# Open Scholar Skill — Academic Paper Writing for Claude Code
+# Open Scholar Skill — Academic Research Skills for Claude Code and Codex
 
 > **Copyright (c) 2025-2026 Open Scholar Skill Contributors**
 > Free for academic, educational, and non-commercial research use under the [Open Scholar Skill License (Academic Use)](LICENSE).
@@ -34,7 +34,7 @@ This open-source release intentionally **does not include** `scholar-full-paper`
 
 It **does** include `scholar-auto-research`, a stable, deterministic pipeline that chains the modular skills from idea or data to a verified manuscript — but **this is not autonomous research, and we do not endorse using it as such.** It differs from the orchestrators above in three ways that are designed to keep you in control: (1) a mandatory **human-in-the-loop mode** that stops for your explicit approval between phases (`set-mode human-in-loop`); (2) deterministic, auditable gates at every phase — results locks, citation-metadata verification, four-agent manuscript verification, and a journal-calibrated quality review — that surface what to inspect rather than hide it; and (3) a hard rule that the specialist skills (`scholar-write`, `scholar-citation`, `scholar-respond`, …) do the substantive scholarly work, so no helper script silently becomes the author of your argument, literature synthesis, or citations. **You remain the author of the research question, the argument, and every interpretation.** Run it in autonomous mode only when you will independently verify every output it produces — the same standard as point 2 in [Ethical Use](#ethical-use-of-ai-in-academic-research) above. When in doubt, run the skills individually and stay in the loop at every step.
 
-The 34 modular skills provided here are the same building blocks. You are encouraged to build your own workflow by chaining skills in the order that fits your research process. A typical pipeline looks like:
+The 35 modular skills provided here are the same building blocks. You are encouraged to build your own workflow by chaining skills in the order that fits your research process. A typical pipeline looks like:
 
 ```
 /scholar-init (set up project + data safety)
@@ -230,7 +230,7 @@ bash setup.sh
 1. Create symlinks (`skills/` → `.claude/skills/`, `agents/` → `.claude/agents/`)
 2. Auto-detect your Zotero library (or prompt for path)
 3. Optionally configure BibTeX, EndNote, and CrossRef email
-4. Install all 35 skills + 20 agents as **personal skills** in `~/.claude/skills/` and `~/.claude/agents/` — installed per-entry alongside any existing personal skills
+4. Install all 36 skills (35 research skills + the `sync-docs` utility) + 20 agents as **personal skills** in `~/.claude/skills/` and `~/.claude/agents/` — installed per-entry alongside any existing personal skills
 5. Register the PreToolUse data-safety hook in `~/.claude/settings.json` (idempotent; preserves existing settings)
 6. Check for `jq` and `python3` (required by the data-safety hook)
 7. Write a `.env` file with your configuration
