@@ -38,10 +38,10 @@ This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-
 At each meaningful step (a decision, a repository search, an inspection, a fallback, a gate call), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "<label>" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "<label>" \
   --reasoning "<the WHY — stated rationale, 1–2 lines>" \
   --action "<the WHAT — repository/tool/gate call + key args>" \
-  --observation "<the RESULT — verdict/count/error/file ref>" --status ok    # ok|fail|skipped
+  --observation "<the RESULT — verdict/count/error/file ref>" --status ok || true    # ok|fail|skipped
 ```
 
 ## Core Repository Map
@@ -85,10 +85,10 @@ identifier.
 
 ```bash
 cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/process-logger.md" 2>/dev/null | grep -q "emit-trace" \
-  && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "1-doi-lookup" \
+  && [ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "1-doi-lookup" \
        --reasoning "A DOI is the strongest provenance key — resolve it first so keyword false-negatives cannot hide an existing deposit" \
        --action "query Dataverse and Zenodo by persistentId/DOI for: $ARGUMENTS" \
-       --observation "hits recorded with repository, PID, access type" --status ok
+       --observation "hits recorded with repository, PID, access type" --status ok || true
 ```
 
 ### Step 2: Repository-complete cross-repository pass
@@ -100,10 +100,10 @@ each repository the target plausibly lives in, run its reference's search patter
 `references/repository-comparison.md`), and record each repository's outcome.
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "2-repo-pass" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "2-repo-pass" \
   --reasoning "Coverage is uneven across archives; a single-repository search produces avoidable false negatives" \
   --action "cross-repository search for: $ARGUMENTS" \
-  --observation "per-repository hit counts and any empty results" --status ok
+  --observation "per-repository hit counts and any empty results" --status ok || true
 ```
 
 ### Step 3: Inspect candidate packages
@@ -113,10 +113,10 @@ capture the full provenance record (see [Provenance and Verification
 Standards](#provenance-and-verification-standards)) before recommending it.
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "3-inspect" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "3-inspect" \
   --reasoning "A landing page is not package proof — contents, access type, and last-updated must be verified" \
   --action "inspect candidate records for: $ARGUMENTS" \
-  --observation "provenance fields captured per candidate" --status ok
+  --observation "provenance fields captured per candidate" --status ok || true
 ```
 
 ### Step 4: Author-hosted fallback
@@ -132,10 +132,10 @@ control. For each author:
 5. Note: author-hosted packages lack DOIs and version control — flag this in output.
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "4-author-fallback" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "4-author-fallback" \
   --reasoning "Primary repositories empty; author-hosted material is a legitimate but weaker fallback (no DOI, no versioning)" \
   --action "author-site search for: $ARGUMENTS" \
-  --observation "author-hosted hits flagged as lower-trust" --status ok
+  --observation "author-hosted hits flagged as lower-trust" --status ok || true
 ```
 
 ### Step 5: Coverage verdict and return
@@ -146,12 +146,12 @@ skill writes nothing but its trace.
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "5-verdict" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication-archives --step "5-verdict" \
   --reasoning "Repository-complete pass complete — record the final coverage verdict" \
   --action "render trace and run the coverage gate" \
-  --observation "verdict returned: found / partial / not-found" --status ok
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-replication-archives-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-replication-archives
+  --observation "verdict returned: found / partial / not-found" --status ok || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-replication-archives-$(date +%Y-%m-%d).ndjson" || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-replication-archives || true
 ```
 
 ## Provenance and Verification Standards
