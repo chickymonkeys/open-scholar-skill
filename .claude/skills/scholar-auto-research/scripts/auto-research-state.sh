@@ -9,6 +9,27 @@ fi
 CMD="$1"
 PROJ="$2"
 shift 2
+
+# PROJ guard (2026-09-06, plan P-A4 / F5). The state machine below opens
+# <PROJ>/.auto-research/state.lock BEFORE dispatching the verb, creating the
+# directory as a side effect. With no validation, `status --help` created
+# ./--help/.auto-research/ at the repository root (found 2026-08-28), and any
+# typo'd path did the same. An option-like or empty PROJ is a usage error; for
+# every verb except the two that create a project, PROJ must already exist.
+# The message for a missing directory is the same one the state machine emits
+# for a missing state.json, so callers that match on it see no change.
+case "$PROJ" in
+  ""|-*)
+    echo "usage: auto-research-state.sh <verb> <project_dir> [options] — project_dir must be a path, got '${PROJ:-<empty>}'" >&2
+    exit 2 ;;
+esac
+case "$CMD" in
+  init|import-init) ;;
+  *) if [ ! -d "$PROJ" ]; then
+       echo "state missing: run init first for $PROJ" >&2
+       exit 1
+     fi ;;
+esac
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTRACT="$(cd "$SCRIPT_DIR/.." && pwd)/references/phase-contract.json"
 
@@ -773,6 +794,19 @@ if cmd == "migrate-contract":
         }
     state["schema_version"] = target[0]
     state["contract_sha256"] = target[1]
+    # Backfill (2026-09-06, resume plan §A8): a state written under schema < 1.2.0 lacks the
+    # fields this script reads unconditionally (run_nonce, halt*, safety_*, review_*), so a
+    # migration that only re-stamped the version would trade CONTRACT_DRIFT for a KeyError.
+    # Defaults mirror `init` exactly; existing values are never overwritten.
+    state.setdefault("run_nonce", secrets.token_hex(16))
+    state.setdefault("halted", False)
+    state.setdefault("halt", None)
+    state.setdefault("halt_history", [])
+    state.setdefault("safety_blocked", None)
+    state.setdefault("safety_inventory", None)
+    state.setdefault("review_assurance_profile", "normal")
+    state.setdefault("review_evidence_history", [])
+    state.setdefault("contract_migration_history", [])
     if invalidate_review_evidence:
         state["review_assurance_profile"] = "normal"
     state.setdefault("review_attempt_epochs", {pid: 0 for pid in review_phase_ids})

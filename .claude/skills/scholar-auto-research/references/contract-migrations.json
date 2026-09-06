@@ -27,6 +27,16 @@
       "to_state_schema": "1.3.0",
       "invalidate_from_phase": 13,
       "invalidate_review_evidence": false
+    },
+    {
+      "id": "legacy-state-1.1.0-backfill-v1",
+      "from_contract_sha256": "099756bfdee1ba0f04b1cfb9f1947f646ac252e64f9e5fe3177aa13a8aea7771",
+      "from_state_schema": "1.1.0",
+      "to_contract_sha256": "beb6125aa0b17e6505f99cc8950dc0a87a355f6ab5f886ef7b3f77b4702028f4",
+      "to_state_schema": "1.3.0",
+      "invalidate_from_phase": 6,
+      "invalidate_review_evidence": true,
+      "note": "2026-09-06 (resume plan §A8): projects created under state schema 1.1.0 had NO allowlisted path to the installed contract and were refused with CONTRACT_DRIFT on every command (measured on loop-livetest-hukou). Backfills the 1.3.0 state fields with init's defaults; every review phase from 6 is re-verified because the contracts between 1.1.0 and 1.3.0 changed the review evidence model (F09) and locked claims (F20)."
     }
   ]
 }

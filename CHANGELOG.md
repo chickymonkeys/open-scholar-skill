@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [5.22.2] - 2026-09-06
+
+### Fixed: scholar-auto-research — legacy 1.1.0 projects can migrate, and the state script no longer creates a project directory for a bogus argument (ported from dev 5.49.1 + 5.50.5)
+
+- `contract-migrations.json`: new allowlisted entry `legacy-state-1.1.0-backfill-v1` (state 1.1.0 @ recorded contract `099756bf…` → 1.3.0 @ the installed contract); `migrate-contract` backfills the ten 1.3.0 fields a pre-1.2.0 state lacks with `init`'s defaults. Before: every command on such a project answered `CONTRACT_DRIFT … no allowlisted migration matches`.
+- `auto-research-state.sh` validates PROJ before opening the state lock: an option-like or empty PROJ is a usage error (rc 2); a nonexistent PROJ with a non-init verb is refused (rc 1, same "state missing" message) instead of creating `<PROJ>/.auto-research/`.
+- Tests ported: `test-legacy-state-migration.sh` (8), `test-proj-guard-auto-research-state.sh` (8); packaged `test-review-evidence-migration` / `test-self-contained-runtime` and the contract lint pass.
+
 ## [5.22.1] - 2026-09-06
 
 ### Fixed: `test-pii-method-eponyms.sh` was ported (a4e26ae) without its gate — `scripts/gates/safety-scan-presidio.py` was absent
