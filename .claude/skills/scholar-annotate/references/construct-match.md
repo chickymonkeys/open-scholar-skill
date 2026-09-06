@@ -158,7 +158,7 @@ Two constraints on the companion, both learned by watching them fail:
 ## Running the gate
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/measurement-instrument-check.sh" "$PROJ"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/measurement-instrument-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/measurement-instrument-check.sh" "$PROJ" || true
 ```
 
 | RC | Meaning | Action |

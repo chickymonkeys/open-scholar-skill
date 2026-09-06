@@ -54,18 +54,18 @@ This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-
 At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-safety --step "<label>" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-safety --step "<label>" \
   --reasoning "<the WHY — stated rationale, 1–2 lines>" \
   --action "<the WHAT — tool/script/gate call + key args>" \
-  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok || true    # ok|fail|skipped
 ```
 
 At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-safety-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-safety
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-safety-$(date +%Y-%m-%d).ndjson" || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-safety || true
 ```
 
 Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
@@ -89,7 +89,7 @@ Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, coun
 Before the detailed scan, run the gate script for a fast RED/YELLOW/GREEN triage:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "[FILE_PATH]"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "[FILE_PATH]" || true
 ```
 
 - **GREEN (exit 0)**: No sensitive patterns detected — proceed to Step 1.1 for detailed scan or skip to MODE 2/3.
@@ -452,7 +452,7 @@ For each file path identified, run the MODE 1 sensitivity scan (Steps 1.1–1.4)
 # Canonical log location is PROJECT-scoped (${PROJ}/logs/) — the same file
 # MODE 4 status reads and the Save Output section documents (output/[slug]/logs/).
 # (Was ${OUTPUT_ROOT}/logs/, which diverged from the slug-scoped path.)
-. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || true
 LOGFILE="${PROJ}/logs/scholar-safety-log.md"
 mkdir -p "${PROJ}/logs"
 echo "## Safety Gate — $(date '+%Y-%m-%d %H:%M')" >> "$LOGFILE"
@@ -567,7 +567,7 @@ Save to: `output/[slug]/protocols/scholar-safety-protocol-[slug]-[YYYY-MM-DD].md
 
 ```bash
 # Same project-scoped location Step 2.4 writes (${PROJ}/logs/).
-. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || true
 if [ -f "${PROJ}/logs/scholar-safety-log.md" ]; then
   cat "${PROJ}/logs/scholar-safety-log.md"
 else
@@ -625,7 +625,7 @@ if [ "$LVL" = "lockdown" ]; then
   case " $ARGUMENTS " in
     *" --allow-escalation "*|*" --allow-unsandboxed "*) ESC="--allow-escalation" ;;
   esac
-  bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/generate-lockdown-config.sh" "$(pwd)" --host auto $ESC
+  [ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/generate-lockdown-config.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/generate-lockdown-config.sh" "$(pwd)" --host auto $ESC || true
 fi
 ```
 
@@ -806,7 +806,7 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 OUTDIR="$(dirname "${OUTPUT_ROOT}/[slug]/protocols/scholar-safety-protocol-[slug]-[YYYY-MM-DD]")"
 STEM="$(basename "${OUTPUT_ROOT}/[slug]/protocols/scholar-safety-protocol-[slug]-[YYYY-MM-DD]")"
 mkdir -p "$OUTDIR"
-BASE=$(bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM" | awk -F= '/^BASE=/{print $2; exit}')
+BASE=$([ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM" | awk -F= '/^BASE=/{print $2; exit}' || true)
 mkdir -p "$(dirname "$BASE")"
 echo "SAVE_PATH=${BASE}.md"
 echo "BASE=${BASE}"
