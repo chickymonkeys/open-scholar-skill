@@ -10,13 +10,22 @@ Exit codes: 0 = GREEN, 1 = RED, 2 = YELLOW
 import sys
 import json
 import os
+import re
+import tempfile
 
-# Opaque binary formats: compressed/encoded data where reading raw bytes
-# as text produces garbage that wastes Presidio cycles and never finds
-# anything useful. Mirror the binary list in safety-scan.sh so we exit
-# fast. Note: PDF/DOCX/XLSX are intentionally OMITTED — those formats
-# often contain extractable plaintext fragments (PDF content streams,
-# OOXML XML) that Presidio CAN usefully scan, so we let them through.
+# Presidio's URL/email recognizers can import tldextract, whose default cache
+# lives under ~/.cache. Sandboxed CI and locked-down desktops may not be able to
+# create the lock file there, so use a writable temp cache unless the caller set
+# an explicit location.
+os.environ.setdefault(
+    "TLDEXTRACT_CACHE",
+    os.path.join(tempfile.gettempdir(), "scholar-tldextract-cache"),
+)
+
+# Opaque binary formats: compressed/encoded numeric data and media.
+# Reading these as text produces garbage that wastes spaCy cycles and
+# never finds anything useful. Short-circuit to YELLOW immediately —
+# saves ~30 seconds vs letting the bash regex fallback grep the binary.
 OPAQUE_BINARY_EXTENSIONS = frozenset({
     "dta", "sav", "rds", "rdata", "parquet", "feather", "arrow",
     "h5", "hdf5", "mat", "pkl", "npy", "npz", "pickle",
@@ -24,6 +33,25 @@ OPAQUE_BINARY_EXTENSIONS = frozenset({
     "wav", "mp3", "flac", "m4a", "ogg", "aac", "aiff",
     "mp4", "mov", "avi", "mkv", "webm",
     "jpg", "jpeg", "png", "tiff", "tif", "heic", "heif", "bmp", "webp", "gif",
+})
+
+# Text-extractable binary formats: PDFs and Office documents contain
+# plaintext fragments (PDF content streams, OOXML XML) mixed with
+# binary cruft. Presidio's approach of reading raw bytes with
+# errors="replace" and feeding them to spaCy NER is pathologically slow
+# — a 3.5 MB PDF produces millions of garbage tokens that send the
+# tokenizer into a ~50 minute / 1.4 GB RAM death spiral. The bash
+# wrapper's regex backend handles these formats correctly: it greps for
+# plaintext keyword patterns without invoking NLP.
+#
+# For these extensions we return exit code 99, which the bash wrapper
+# interprets as "Presidio unable to process, use regex fallback". The
+# regex backend then catches the same keyword patterns (DOB fields,
+# HIPAA identifiers, etc.) that Presidio's pattern recognizers would
+# have matched, without the NLP overhead.
+TEXT_EXTRACTABLE_BINARY_EXTENSIONS = frozenset({
+    "pdf", "doc", "docx", "ppt", "pptx",
+    "xls", "xlsx", "xlsm", "ods",
 })
 
 # spaCy's default nlp.max_length is 1,000,000 chars. Research files
@@ -210,6 +238,56 @@ PERSON_RED_THRESHOLD = 0.85
 HIPAA_YELLOW_THRESHOLD = 0.6
 
 
+# ── Statistical-method eponyms ──
+# Presidio's NER scores a bare surname as PERSON 0.85 → RED. Statistical
+# vocabulary is eponymous, so a line like "the correction applied was Holm"
+# is classified as respondent PII and the entire tool output is redacted.
+# Measured 2026-08-27: `echo "the correction applied was Holm"` REDs;
+# the identical line with the eponym removed passes. This blocked a reviewer
+# from independently checking arithmetic about a paper's central result, and
+# had earlier blocked bibliography author lists — the same detector doing the
+# same thing to another legitimate input.
+#
+# The suppression is deliberately narrow, because a respondent CAN be named
+# Cox or Lee. All three must hold before a PERSON hit is downgraded:
+#   1. the matched span is an allowlisted method eponym,
+#   2. it sits in a method context (a column of respondent names has none),
+#   3. no OTHER PII was found in the same file — real PII re-promotes it.
+# The hit is DOWNGRADED to YELLOW and reported, never deleted: a declaration,
+# not a bypass. Disable with SCHOLAR_PII_EPONYM_ALLOWLIST=0.
+METHOD_EPONYMS = {
+    "holm", "bonferroni", "sidak", "hochberg", "benjamini", "hochberg-yekutieli",
+    "rosenbaum", "manski", "oster", "nickell", "heckman", "mundlak", "hausman",
+    "kaplan", "meier", "kaplan-meier", "cox", "tukey", "scheffe", "dunnett",
+    "wald", "wilcoxon", "kruskal", "wallis", "mann", "whitney", "shapiro",
+    "levene", "bartlett", "durbin", "watson", "breusch", "pagan", "white",
+    "huber", "newey", "west", "fisher", "pearson", "spearman", "kendall",
+    "bayes", "markov", "monte", "carlo", "gauss", "poisson", "bernoulli",
+    "student", "welch", "anderson", "darling", "kolmogorov", "smirnov",
+    "akaike", "schwarz", "cramer", "rao", "jarque", "bera", "chow", "sargan",
+    "hansen", "arellano", "bond", "blundell", "lee", "imbens", "angrist",
+    "rubin", "neyman", "abadie", "callaway", "santanna", "goodman", "bacon",
+}
+METHOD_CONTEXT = re.compile(
+    r"correct|adjust|bound|test|estimat|procedur|delta|p-?value|"
+    r"multiple\s+comparison|sensitivity|bias|standard\s+error|"
+    r"confidence\s+interval|threshold|statistic|regress|model|method|"
+    r"criteri|weight|interval|error|coefficient|contrast|specification|"
+    r"robust|inference|significan|hazard|survival|estimator|fdr|familywise",
+    re.I)
+EPONYM_ALLOWLIST_ON = os.environ.get("SCHOLAR_PII_EPONYM_ALLOWLIST", "1") != "0"
+
+
+def is_method_eponym(text, start, end):
+    """True when the PERSON span is an allowlisted eponym in a method context."""
+    span = text[start:end].strip().lower()
+    tokens = [t for t in re.split(r"[\s\-]+", span) if t]
+    if not tokens or not all(t in METHOD_EPONYMS for t in tokens):
+        return False
+    ctx = text[max(0, start - 80):min(len(text), end + 80)]
+    return bool(METHOD_CONTEXT.search(ctx))
+
+
 def classify(entity_type, score):
     """Return 'RED', 'YELLOW', or None (skip)."""
     if entity_type in SKIP_ENTITIES:
@@ -234,12 +312,12 @@ def classify(entity_type, score):
 
 def scan_file(file_path, output_json=False):
     # ── Opaque binary short-circuit ──
-    # Stata, SPSS, parquet, hdf5, pickle, audio, video, raster images
-    # store data zlib-compressed or in proprietary encodings. Reading
-    # them as text gives garbage that wastes spaCy/Presidio cycles and
-    # never matches anything useful. Exit fast with a YELLOW the bash
-    # wrapper recognizes — the user will be prompted to choose
-    # LOCAL_MODE or HALT for these files.
+    # Numeric data files (.dta/.sav/.parquet/.h5/.pickle) and media
+    # (audio/video/images) store data in compressed or proprietary
+    # encodings. Reading them as text gives garbage that wastes
+    # spaCy/Presidio cycles and never matches anything useful. Exit
+    # fast with a YELLOW the bash wrapper recognizes — the user will
+    # be prompted to choose LOCAL_MODE, ANONYMIZE, or HALT.
     ext = os.path.splitext(file_path)[1].lstrip(".").lower()
     if ext in OPAQUE_BINARY_EXTENSIONS:
         if output_json:
@@ -260,6 +338,22 @@ def scan_file(file_path, output_json=False):
             print(f"  YELLOW: Recommend LOCAL_MODE: analyze via Rscript -e / python3 -c")
             print(f"  YELLOW: without transmitting row-level data to the API.")
         return 2
+
+    # ── Text-extractable binary → defer to regex backend ──
+    # PDFs and Office documents contain plaintext fragments buried in
+    # binary cruft. Feeding the raw bytes to spaCy NER is pathologically
+    # slow (~50 minutes on a 3.5 MB PDF), but grep over raw bytes is
+    # fast and catches the same keyword patterns. Return exit code 99
+    # so the bash wrapper falls through to its regex backend. We write
+    # to stderr instead of stdout so the bash wrapper does not see a
+    # recognizable RED/YELLOW/GREEN line and correctly falls through.
+    if ext in TEXT_EXTRACTABLE_BINARY_EXTENSIONS:
+        print(
+            f"NOTE: Skipping Presidio for .{ext} — deferring to regex backend "
+            f"(Presidio NER on binary-as-text is pathologically slow)",
+            file=sys.stderr,
+        )
+        return 99
 
     # Wrap analyzer construction AND execution in a fallback guard.
     # Presidio depends on spaCy models, tldextract cache files, and
@@ -333,6 +427,7 @@ def scan_file(file_path, output_json=False):
 
     red_issues = []
     yellow_issues = []
+    eponym_downgrades = []
 
     seen = set()
     for r in sorted(results, key=lambda x: -x.score):
@@ -346,11 +441,10 @@ def scan_file(file_path, output_json=False):
         if severity is None:
             continue
 
-        # Privacy contract: the matched substring IS the PII and must never
-        # reach stdout/stderr — a Bash-tool caller returns those streams
-        # straight into the model's context, which is exactly what this scan
-        # exists to prevent. Keep only the length so downstream consumers
-        # retain the schema shape without the value itself.
+        # C-01 privacy contract: the matched substring is PII and must never
+        # reach stdout/stderr (which are returned to the model). We keep only
+        # the length so downstream consumers retain the schema shape without
+        # the value itself.
         snippet_len = r.end - r.start
 
         issue = {
@@ -362,10 +456,30 @@ def scan_file(file_path, output_json=False):
             "snippet": f"[REDACTED len={snippet_len}]",
         }
 
+        if severity == "RED" and r.entity_type == "PERSON" \
+                and EPONYM_ALLOWLIST_ON and is_method_eponym(text, r.start, r.end):
+            issue["severity"] = "YELLOW"
+            issue["downgraded"] = "statistical-method eponym in method context"
+            eponym_downgrades.append(issue)
+            continue
+
         if severity == "RED":
             red_issues.append(issue)
         else:
             yellow_issues.append(issue)
+
+    # Condition 3: a downgrade only stands if NOTHING else in the file is PII.
+    # If any other RED survived, treat the file as carrying real PII and
+    # re-promote every downgraded eponym rather than trusting the allowlist.
+    if eponym_downgrades:
+        if red_issues:
+            for issue in eponym_downgrades:
+                issue["severity"] = "RED"
+                issue.pop("downgraded", None)
+                issue["repromoted"] = "other PII present in file"
+                red_issues.append(issue)
+        else:
+            yellow_issues.extend(eponym_downgrades)
 
     if output_json:
         result = {
@@ -381,13 +495,20 @@ def scan_file(file_path, output_json=False):
         if yellow_issues:
             print(f"YELLOW: {len(yellow_issues)} issue(s) found — review before transmitting")
 
-        # Print type + confidence only; never the matched value (see the
-        # redaction note above).
+        # C-01: print type + confidence only; never the matched value.
         for issue in red_issues + yellow_issues:
             label = issue["severity"]
             etype = issue["entity_type"]
             score = issue["score"]
-            print(f"  {label}: {etype} (confidence: {score})")
+            # A suppression nobody can see is a bypass, not a declaration:
+            # every eponym downgrade (and every re-promotion) says so on the
+            # line it affects. Still no matched value — C-01 holds.
+            note = ""
+            if issue.get("downgraded"):
+                note = f" [downgraded: {issue['downgraded']}]"
+            elif issue.get("repromoted"):
+                note = f" [re-promoted to RED: {issue['repromoted']}]"
+            print(f"  {label}: {etype} (confidence: {score}){note}")
 
         if not red_issues and not yellow_issues:
             print("GREEN: No sensitive data patterns detected")

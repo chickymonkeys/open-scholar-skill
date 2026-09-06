@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [5.22.1] - 2026-09-06
+
+### Fixed: `test-pii-method-eponyms.sh` was ported (a4e26ae) without its gate — `scripts/gates/safety-scan-presidio.py` was absent
+
+`safety-scan.sh` already tries `$SCRIPT_DIR/safety-scan-presidio.py` first when presidio-analyzer is installed; with the file missing it fell to the regex backend, which flags a bare statistical eponym ("Holm") as PII and REDs — the exact false positive the test guards against (dev P19-A D2: a method eponym in method context is YELLOW, disclosed, never a silent downgrade; `SCHOLAR_PII_EPONYM_ALLOWLIST=0` restores RED). Ported dev's scanner byte-exact (no personal strings). test-pii-method-eponyms 12/12, test-gates 13/13.
+
 ## [5.22.0] - 2026-09-06
 
 ### Fixed: scholar-rag `_lib.sh` — `rag_trace` wrote nothing when called from zsh
