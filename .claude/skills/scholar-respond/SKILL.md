@@ -153,25 +153,40 @@ Before spawning reviewer agents, assess desk-reject probability:
 
 ### Step 2: Journal-Calibrated Reviewer Configuration
 
-Before spawning agents, identify journal-specific reviewer priorities:
+Before spawning agents, identify the journal-specific reviewer persona and priorities. Use the
+`Persona` value from the selected journal row in the reviewer prompts in Step 3.
 
-| Journal | R1 (Methods) emphasis | R2 (Theory) emphasis | R3 (Editor) emphasis |
-|---------|----------------------|---------------------|---------------------|
-| **ASR** | Causal claims vs. design; AME not OR; robustness; N | Theory depth ≥800 words; mechanism specification; H↔results | Contribution clarity; word count ≤12K; framing |
-| **AJS** | Same as ASR + historical/comparative scope | Classical theory engagement (Weber/Durkheim/Marx); theoretical innovation | Essay-style coherence; AJS readership fit |
-| **Demography** | Sensitivity analyses; missing data; decomposition; online appendix | Data-population connection; demographic framework | Replication package; data availability |
-| **Social Forces** | Solid empirical design; clear operationalization | Engagement with middle-range theories; clear literature positioning | Accessible framing; moderate theoretical ambition |
-| **Science Advances** | Replication materials; code availability; interdisciplinary methods | Interdisciplinary framing; sociological terms defined for broader audience | Broad significance; CRediT statement; word count |
-| **NHB** | Reporting Summary; power analysis; all test statistics (t, df, p); error bars labeled | Cross-disciplinary theory; claims accessible to psychologists/economists | Word limit (5K main); 50-reference limit; figure standards |
-| **NCS** | Code mandatory; computational rigor; benchmarks; reproducibility | Methodological contribution clarity; computational advance stated | NCS Reporting Summary; Results-before-Methods; word limit |
-| **Language in Society** | Sociolinguistic method rigor; transcription standards; speaker metadata | Language ideology frameworks; indexicality; language and power | Engagement with LiS readership; ethnographic depth |
-| **APSR** | Causal identification; pre-registration; replication data | Democratic theory; institutional frameworks; power | Political significance; policy relevance; generalizability |
-| **JMF** | Family demography methods; longitudinal design; selection | Life course theory; family process mechanisms | Applied significance; family policy implications |
-| **PDR** | Demographic techniques; formal demography; decomposition | Population theory; demographic transition | Broad demographic significance; data quality |
-| **SMR** | Methodological innovation; simulation evidence; proof | Clear methodological advance over existing tools | Sociological applicability; tutorial clarity |
-| **Gender & Society** | Feminist methodology; intersectional analysis | Gender theory; intersectionality; power structures | Feminist praxis; social justice implications |
-| **Poetics** | Cultural methods; text analysis; computational culture | Cultural theory; meaning-making; boundary work | Cultural sociology audience; symbolic boundaries |
-| **Social Problems** | Applied methods; policy-relevant design | Social constructionism; claims-making; inequality | Public relevance; policy implications; accessibility |
+| Journal | Persona | R1 (Methods) emphasis | R2 (Theory) emphasis | R3 (Editor) emphasis |
+|---------|---------|----------------------|---------------------|---------------------|
+| **ASR** | sociologist | Causal claims vs. design; AME not OR; robustness; N | Theory depth ≥800 words; mechanism specification; H↔results | Contribution clarity; word count ≤12K; framing |
+| **AJS** | sociologist | Same as ASR + historical/comparative scope | Classical theory engagement (Weber/Durkheim/Marx); theoretical innovation | Essay-style coherence; AJS readership fit |
+| **Demography** | sociologist | Sensitivity analyses; missing data; decomposition; online appendix | Data-population connection; demographic framework | Replication package; data availability |
+| **Social Forces** | sociologist | Solid empirical design; clear operationalization | Engagement with middle-range theories; clear literature positioning | Accessible framing; moderate theoretical ambition |
+| **Science Advances** | sociologist | Replication materials; code availability; interdisciplinary methods | Interdisciplinary framing; sociological terms defined for broader audience | Broad significance; CRediT statement; word count |
+| **NHB** | sociologist | Reporting Summary; power analysis; all test statistics (t, df, p); error bars labeled | Cross-disciplinary theory; claims accessible to psychologists/economists | Word limit (5K main); 50-reference limit; figure standards |
+| **NCS** | sociologist | Code mandatory; computational rigor; benchmarks; reproducibility | Methodological contribution clarity; computational advance stated | NCS Reporting Summary; Results-before-Methods; word limit |
+| **Language in Society** | sociologist | Sociolinguistic method rigor; transcription standards; speaker metadata | Language ideology frameworks; indexicality; language and power | Engagement with LiS readership; ethnographic depth |
+| **APSR** | sociologist | Causal identification; pre-registration; replication data | Democratic theory; institutional frameworks; power | Political significance; policy relevance; generalizability |
+| **JMF** | sociologist | Family demography methods; longitudinal design; selection | Life course theory; family process mechanisms | Applied significance; family policy implications |
+| **PDR** | sociologist | Demographic techniques; formal demography; decomposition | Population theory; demographic transition | Broad demographic significance; data quality |
+| **SMR** | sociologist | Methodological innovation; simulation evidence; proof | Clear methodological advance over existing tools | Sociological applicability; tutorial clarity |
+| **Gender & Society** | sociologist | Feminist methodology; intersectional analysis | Gender theory; intersectionality; power structures | Feminist praxis; social justice implications |
+| **Poetics** | sociologist | Cultural methods; text analysis; computational culture | Cultural theory; meaning-making; boundary work | Cultural sociology audience; symbolic boundaries |
+| **Social Problems** | sociologist | Applied methods; policy-relevant design | Social constructionism; claims-making; inequality | Public relevance; policy implications; accessibility |
+| **AER** | economist | Robust and credible conclusions; empirical-method detail; data/code reproducibility | Breadth, importance, innovation; essential proofs in the paper | Worthiness for publication; analysis quality; clarity |
+| **AEJ: Applied** | economist | AEA data/code policy; replication package with R&R | Applied contribution and innovation; claims supported by analysis | Importance to applied-economics readers; clarity |
+| **AEJ: Economic Policy** | economist | AEA data/code policy; credible quantitative analysis | Policy contribution and innovation; theory-to-policy connection | Importance to economic-policy readers; clarity |
+| **AEJ: Macroeconomics** | economist | AEA data/code policy; empirical or simulation reproducibility | Macroeconomic contribution and innovation; model clarity | Importance to macroeconomics readers; clarity |
+| **AEJ: Microeconomics** | economist | AEA data/code policy; empirical or simulation reproducibility | Microeconomic contribution and innovation; essential proofs | Importance to microeconomics readers; clarity |
+| **QJE** | economist | Final data/programs; intermediate construction; replication README | Contribution and economic significance; experimental design where applicable | General-interest importance; coherent presentation |
+| **JPE** | economist | Positive reproducibility check; provenance; raw/analysis data and code | Economic contribution; experimental or simulation logic where applicable | Publication conditional on reproducibility; broad significance |
+| **Econometrica** | economist | Replicable empirical, experimental, and computational results; preregistration where required | Formal validity; data-collection and simulation logic | Expert, constructive assessment; transparent exemptions |
+| **REStud** | economist | Code must reproduce every table, figure, and numerical result; full transformation chain | Contribution and formal validity; simulation-generation logic | Integrity, care, transparency; conflict and expertise disclosure |
+| **JDE** | economist | Sound, feasible methods; power; data accuracy, consistency, bias, completeness | Contribution beyond a country/case/event; hypotheses and mechanisms | General-readership value; methodological rigor; interpretation matches evidence |
+| **JOLE** | economist | Human-subject and confidential-data integrity; transparent LLM use | Labour-economics contribution; responsible evidence interpretation | Funding/conflict disclosure; reviewer accountability; correction policy |
+| **JPubE** | economist | Rigorous quantitative analysis appropriate to the claim | Modern economic theory; public-economics contribution | Originality; international policy relevance; readership fit |
+| **RJE** | economist | Empirical or theoretical rigor; critical assessment of supporting material | Industrial-organization contribution and originality | Quality, originality, significance to readers |
+| **JME** | economist | Reproducible data, code, models, algorithms; robustness and computational experiments | Macroeconomic contribution; proof and model clarity | Main paper stands alone; significance to macroeconomics readers |
 
 ### Step 3: Spawn Reviewer Agents
 
@@ -185,11 +200,11 @@ Use the Task tool to run reviewers **in parallel**. The reviewer prompts come fr
 
 **Reviewer 2 — Theorist / Conceptual Critic** (from `peer-reviewer-theory.md`)
 
-> "You are a theoretical sociologist reviewing a [journal] paper. Follow the evaluation criteria and output format in your agent profile. Additionally, apply the journal-specific emphasis: [insert from calibration table above]. Paper type: [from 0d]. Be specific: quote the paper. Rate your recommended decision. Manuscript: [full text]"
+> "You are a theoretical [persona] reviewing a [journal] paper. Follow the evaluation criteria and output format in your agent profile. Additionally, apply the journal-specific emphasis: [insert from calibration table above]. Paper type: [from 0d]. Be specific: quote the paper. Rate your recommended decision. Manuscript: [full text]"
 
 **Reviewer 3 — Senior Editor / Holistic Reviewer** (from `peer-reviewer-senior.md`)
 
-> "You are a senior sociologist and former associate editor at [journal]. Follow the evaluation criteria and output format in your agent profile. Additionally, apply the journal-specific emphasis: [insert from calibration table above]. Paper type: [from 0d]. Be specific: quote the paper. Rate your recommended decision. Manuscript: [full text]"
+> "You are a senior [persona] and former associate editor at [journal]. Follow the evaluation criteria and output format in your agent profile. Additionally, apply the journal-specific emphasis: [insert from calibration table above]. Paper type: [from 0d]. Be specific: quote the paper. Rate your recommended decision. Manuscript: [full text]"
 
 **Always spawn a fourth reviewer**:
 
