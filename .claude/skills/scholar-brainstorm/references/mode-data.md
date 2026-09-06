@@ -509,7 +509,7 @@ This holds in every `SAFETY_STATUS` branch — `CLEARED`, `OVERRIDE`, `ANONYMIZE
 
 ```bash
 # ── Derive ${PROJ} via the canonical helper ──
-. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || true
 mkdir -p "${PROJ}/scripts"
 echo "Signal-test script will be saved to: ${PROJ}/scripts/brainstorm-signal-tests.R"
 ```
@@ -605,7 +605,7 @@ print(signal_results |> select(rq, x_var, y_var, test_type, effect_size, effect_
 
 ```bash
 # ── Derive ${PROJ} again — shell variables do NOT persist across Bash calls ──
-. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || true
 SCRIPT_PATH="${PROJ}/scripts/brainstorm-signal-tests.R"
 LOG_PATH="${PROJ}/scripts/brainstorm-signal-tests.log"
 

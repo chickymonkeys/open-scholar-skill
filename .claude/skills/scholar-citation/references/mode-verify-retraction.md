@@ -210,6 +210,9 @@ CLAIM INVENTORY:
 - **Magnitude claim**: specific numbers, effect sizes, percentages attributed to a source
 - **Population/scope claim**: "among [population]", "in [context]", claims about where a finding applies
 - **Causal claim**: "causes", "leads to", "produces", "results in" — verify the cited paper actually makes a causal claim vs. showing correlation
+- **Negative-literature claim**: "no prior work studies X", "little is known about", "no evidence on", "we are the first to" — verify the cited source(s) actually support the absence claim, and that it is not overstated
+- **Named-entity claim**: a package, estimator, or venue name attributed to a source ("the `did` R package", "[Author]'s estimator") — verify the entity exists and is spelled exactly as in the source
+- **Dataset-field claim**: "the CPS has a field X", "the ACS collects Y" — verify the dataset actually contains the named field or measure
 
 ### Step V-3.5a2: Resolve write-time Evidence Ledger anchors (fast path — before KG)
 
@@ -217,6 +220,17 @@ When the manuscript carries `<!--ev: anchor_id-->` tags (written by lit-review/s
 - A `source_verbatim` T1/T2 anchor whose quote entails the claim → verify against that passage directly (record the anchor_id in the audit record's `anchor_refs[]`).
 - A `kg_paraphrase` or `metadata_only`/`T3` anchor → the write-time evidence was weak: **escalate these claims to a KG/PDF read first** — they are the highest-risk pool.
 - Anchors are leads, not verdicts: the verdict always comes from what the retrieved text actually says.
+
+### Step V-3.5a3: Write the claims file (independence by artifact)
+
+Write every extracted claim to a claims file — verbatim manuscript quote, cite
+key, manuscript location, claim type, and the verification question(s) that
+decide it — at `${PROJ}/evidence/claims-to-verify-[YYYY-MM-DD].md`. The file is
+the checker's only input: it carries the claims and their questions, never the
+draft. Independence by artifact replaces a harness-specific context fork, so it
+works in every harness — and in a harness with no fork primitive at all. When
+the audit is offloaded to the `verify-claim-faithfulness` agent, hand it this
+path and nothing else.
 
 ### Step V-3.5b: Look up cited papers in Knowledge Graph (Tier 0 — fastest)
 
@@ -304,7 +318,7 @@ For each claim, assign one of these statuses:
 
 **IMPORTANT — Emit an audit record for EVERY adjudicated claim, including `CLAIM-VERIFIED`.** Markers persist only the defects; without positive records a verified claim is indistinguishable from an unchecked one and a skipped V-3.5 pass is indistinguishable from a passing one. Append one `claim-audit-record/v1` line per (sentence, citation) pair to `${PROJ}/evidence/claim-faithfulness-audit-[YYYY-MM-DD].ndjson` (schema: `schema/claim-audit-record.schema.json`; fields incl. verbatim sub-claim `evidence_quote`s, `access_tier`, `anchor_refs[]` from Step V-3.5a2, and `claim_fingerprint` = sha256 of the normalized comment-stripped sentence). After the pass: write the audit filename to `${PROJ}/evidence/LATEST-audit.txt`, validate with `bash scripts/gates/check-claim-audit-consistency.sh <audit-file>` (fix any violation), and re-render the Evidence Dossier (`python3 scripts/render-evidence-dossier.py --proj "$PROJ" --out <version-checked evidence/evidence-dossier-*.md path> --draft <manuscript>`) so verdicts appear beside the passages.
 
-For a deeper sentence-level audit (or to offload this entire step), dispatch the `verify-claim-faithfulness` agent — it implements the same sub-claim decomposition and tier chain described in V-3.5a–d against the identical schema. When dispatched, consume its artifact instead of re-deriving these steps manually; do not double-write the audit file.
+For a deeper sentence-level audit (or to offload this entire step), dispatch the `verify-claim-faithfulness` agent — it implements the same sub-claim decomposition and tier chain described in V-3.5a–d against the identical schema. Hand it the claims file from V-3.5a3 as `--claims`, never the draft — independence by artifact, portable across harnesses. When dispatched, consume its artifact instead of re-deriving these steps manually; do not double-write the audit file.
 
 **Decision rules:**
 1. **Directional match**: If the manuscript says "X increases Y" but the paper found "X decreases Y" → `CLAIM-REVERSED`

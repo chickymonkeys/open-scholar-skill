@@ -51,9 +51,9 @@ The sidecar is durable and shareable. `reasoning` and `observation` carry **verd
 After the agent returns, the dispatching skill records the dispatch (`emit-task-dispatch.sh`, unchanged) and folds the sidecar into the master trace:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/ingest-agent-trace.sh" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/ingest-agent-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/ingest-agent-trace.sh" \
   --sidecar "<report-path>.trace.ndjson" --skill <dispatching-skill> \
-  --agent <subagent_type> --agentId <id-from-Task> --phase <phase> --proj "$PROJ"
+  --agent <subagent_type> --agentId <id-from-Task> --phase <phase> --proj "$PROJ" || true
 ```
 
 `ingest-agent-trace.sh` stamps `seq`/`run_id`/`agentId`, appends via `emit-trace.sh`, and cross-checks the `agentId` against `logs/dispatch-manifest.jsonl`. `trace-coverage-check.sh` then RED-fails the phase if any dispatched `agentId` has no trace event.

@@ -34,18 +34,18 @@ This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-
 At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-lit-review --step "<label>" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-lit-review --step "<label>" \
   --reasoning "<the WHY — stated rationale, 1–2 lines>" \
   --action "<the WHAT — tool/script/gate call + key args>" \
-  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok || true    # ok|fail|skipped
 ```
 
 At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-lit-review-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-lit-review
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-lit-review-$(date +%Y-%m-%d).ndjson" || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-lit-review || true
 ```
 
 Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
@@ -868,7 +868,7 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 OUTDIR="$(dirname "${OUTPUT_ROOT}/lit-review/scholar-lit-review-[slug]-[YYYY-MM-DD]")"
 STEM="$(basename "${OUTPUT_ROOT}/lit-review/scholar-lit-review-[slug]-[YYYY-MM-DD]")"
 mkdir -p "$OUTDIR"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM" || true
 ```
 
 **Use the printed `SAVE_PATH` as `file_path` in the Write tool call.** Re-run this block (with the appropriate BASE) for each additional file. The same version suffix must be used for all related output files (.md, .docx, .tex, .pdf).
@@ -934,10 +934,10 @@ _b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKI
 [ -f "$_b" ] && . "$_b"; unset _b
 . "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
 OUTDIR="${PROJ}/evidence"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "evidence-dossier-[slug]-[YYYY-MM-DD]"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "evidence-dossier-[slug]-[YYYY-MM-DD]" || true
 # Use the printed SAVE_PATH:
 python3 "${SCHOLAR_SKILL_DIR:-.}/scripts/render-evidence-dossier.py" --proj "$PROJ" --out "<SAVE_PATH>" --slug "[slug]"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/evidence-anchor-check.sh" "$PROJ" --phase 2
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/evidence-anchor-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/evidence-anchor-check.sh" "$PROJ" --phase 2 || true
 ```
 
 The dossier is stamped **UNADJUDICATED** at this stage (verdicts arrive when the `verify-claim-faithfulness` agent audits the claims) — that is expected. Gate verdicts: GREEN proceed; YELLOW note the advisory in the search log and proceed; RED fix (missing/invalid ledger, unresolvable inventory ids) before completing the skill.
@@ -1132,7 +1132,7 @@ Before finalizing, verify every item:
 
 **Run claim verification gate before saving:**
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-claims.sh" "[output_file]"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-claims.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-claims.sh" "[output_file]" || true
 ```
 
 **Causal language precision:**

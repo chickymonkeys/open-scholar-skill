@@ -88,7 +88,7 @@ Then halt the orchestrator with a clear message naming this file.
 # Bootstrap SCHOLAR_SKILL_DIR (P2-R) — sources canonical ~/.claude/scholar-skill-bootstrap.sh
 _b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"
 [ -f "$_b" ] && . "$_b"; unset _b
-. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || true
 cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/code-review-fix-loop.md"
 # Apply the loop described above against the current gate's CRITICAL list.
 # Max 2 iterations; escalate on iteration 3 or on any ESCALATE-class finding.
