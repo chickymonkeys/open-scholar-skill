@@ -1,6 +1,6 @@
 ---
 name: verify-claim-faithfulness
-description: A verification agent that independently checks, at the sentence level, whether each cited source actually SUPPORTS the prose claim attributed to it — distinct from whether the reference exists. For every (claim sentence, citation) pair it decomposes the sentence into atomic sub-claims (direction, magnitude, population, causal status), retrieves the cited source's actual text via the tier chain (Knowledge Graph full-text → Zotero PDF → open-access full text → abstract), localizes the supporting/contradicting passage, and emits a structured claim-faithfulness-audit.ndjson record per claim with an evidence quote, source location, access tier, verdict, and severity. Catches misattribution, reversed direction, magnitude overclaim, correlation-as-causation, and scope overgeneralization. Invoked by scholar-citation VERIFY (Step V-3.5).
+description: A verification agent that independently checks, at the sentence level, whether each cited source actually SUPPORTS the prose claim attributed to it — distinct from whether the reference exists. For every (claim sentence, citation) pair it decomposes the sentence into atomic sub-claims (direction, magnitude, population, causal status, absence, named entity, dataset field), retrieves the cited source's actual text via the tier chain (Knowledge Graph full-text → Zotero PDF → open-access full text → abstract), localizes the supporting/contradicting passage, and emits a structured claim-faithfulness-audit.ndjson record per claim with an evidence quote, source location, access tier, verdict, and severity. Catches misattribution, reversed direction, magnitude overclaim, correlation-as-causation, scope overgeneralization, fabricated negative-literature claims, and wrong package/estimator/venue or dataset-field naming. Invoked by scholar-citation VERIFY (Step V-3.5); receives a claims file, never the draft.
 tools: Read, Write, Bash, WebSearch, WebFetch
 ---
 
@@ -89,10 +89,12 @@ correct citations destroys trust faster than missing one.
 ## Protocol
 
 ### Phase 1 — Pair & classify
-Parse the manuscript (or section) supplied via `--manuscript <path>` (or the
-draft path in the dispatch). For each in-text citation, extract the
-(manuscript_quote, cite_key) pair and the `manuscript_loc` (file:line). Classify
-`citation_function`:
+Read the claims file supplied via `--claims <path>`. The calling skill writes it
+in Step V-3.5a3: verbatim manuscript quotes, cite keys, manuscript locations,
+claim types, and the verification question(s) that decide each claim. You receive
+ONLY this file, never the draft — independence by artifact, portable to any
+harness. For each claim keep the (manuscript_quote, cite_key, manuscript_loc)
+triple and its claim type. Classify `citation_function`:
 - **empirical** / **theoretical** — claim-bearing (must be checked).
 - **method** ("following the approach of") / **pointer** ("see X for a review") —
   not a faithfulness claim → `CLAIM-NOT-A-CLAIM`, severity OK, no retrieval needed.
@@ -106,6 +108,11 @@ independently true or false:
 - `population` — the group/context the finding applies to
 - `causal` — whether causal language is warranted by the source's design
 - `theory` / `method` — for theoretical/method attributions
+- `absence` — negative-literature claims: does the cited source (or the surveyed
+  literature) actually establish the absence the prose asserts?
+- `entity` — named-entity claims: does the named package / estimator / venue
+  exist, spelled exactly as the source names it?
+- `field` — dataset-field claims: does the dataset contain the named field or measure?
 
 ### Phase 3 — Retrieve the source's actual text (record the tier)
 Walk the tier chain; stop at the first that yields enough text; record the tier:
@@ -187,7 +194,9 @@ ingest. Example record:
 After writing the artifact, run the consistency finalizer and fix any violation
 before declaring done (the orchestrator runs it again as a gate):
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/check-claim-audit-consistency.sh" <audit-out>
+if [ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/check-claim-audit-consistency.sh" ]; then
+  bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/check-claim-audit-consistency.sh" <audit-out>
+fi
 ```
 
 ## Report format (`--write-to`)

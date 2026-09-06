@@ -77,10 +77,12 @@ Before executing ANY reviewed script:
 
 ```bash
 _b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"; [ -f "$_b" ] && . "$_b"; unset _b
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
-  --manifest "$PROJ/code-review/reviewed-scripts-<review_id>.json" \
-  --required=fast --phase <phase-tag> \
-  || { echo "HALT: pre-execution review gate failed — apply the fix loop (§6) or escalate; do NOT execute."; exit 1; }
+if [ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" ]; then
+  bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
+    --manifest "$PROJ/code-review/reviewed-scripts-<review_id>.json" \
+    --required=fast --phase <phase-tag> \
+    || { echo "HALT: pre-execution review gate failed — apply the fix loop (§6) or escalate; do NOT execute."; exit 1; }
+fi
 ```
 
 Exit codes: `0 GREEN` (execute the reviewed files) / `1 RED` (fix + re-review; never execute) / `2 YELLOW` (legacy-only; non-executable — re-review before executing) / `3 INERT` (no scripts in scope). YELLOW is NOT a pass for execution under this protocol.

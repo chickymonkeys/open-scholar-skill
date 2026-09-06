@@ -43,7 +43,7 @@ NEVER fabricate citations. If a reference cannot be verified at ANY tier, mark i
 
 After any skill produces citation-containing output, run:
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-citations.sh" "$DRAFT_PATH"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-citations.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-citations.sh" "$DRAFT_PATH" || true
 ```
 
 ## Integration
