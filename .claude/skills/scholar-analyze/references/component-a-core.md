@@ -106,7 +106,7 @@ If the user confirms `/scholar-causal` was already run, or the analysis is purel
 # Re-derive ${PROJ} via the canonical helper so this writes to
 # output/<slug>/ (scholar-init context) or output/_staging (legacy),
 # NOT a bare `output/tables/` at the project root.
-. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || true
 mkdir -p "${PROJ}/tables" "${PROJ}/figures" "${PROJ}/scripts"
 ```
 

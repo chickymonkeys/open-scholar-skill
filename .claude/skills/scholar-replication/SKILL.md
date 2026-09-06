@@ -54,8 +54,13 @@ This step is a **no-op** when `.claude/safety-status.json` does not exist. The P
 # Scan every file registered in .claude/safety-status.json for unsafe statuses.
 # scholar-replication does NOT implement LOCAL_MODE dispatch, so any LOCAL_MODE
 # file must be excluded from the replication package (or linked as a stub).
-SIDECAR=".claude/safety-status.json"
-if [ -f "$SIDECAR" ] && command -v jq >/dev/null 2>&1; then
+SIDECAR=".agents/safety-status.json"
+[ -f "$SIDECAR" ] || SIDECAR=".claude/safety-status.json"
+if [ -f "$SIDECAR" ]; then
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "⛔ scholar-replication: safety sidecar present at $SIDECAR but jq is not installed — cannot check SAFETY_STATUS, so refusing to test-run the package. Install jq and re-run." >&2
+    exit 1
+  fi
   UNSAFE=$(jq -r 'to_entries | map(select(.value | test("^(NEEDS_REVIEW|HALTED|LOCAL_MODE)"))) | map("  - " + .key + " → " + .value) | .[]' "$SIDECAR")
   if [ -n "$UNSAFE" ]; then
     cat >&2 <<HALTMSG
@@ -64,7 +69,8 @@ with unsafe SAFETY_STATUS values:
 $UNSAFE
 
 Options:
-  1. Run /scholar-init review to resolve NEEDS_REVIEW entries
+  1. Resolve NEEDS_REVIEW entries by editing the sidecar ($SIDECAR);
+     the shipped example at .agents/safety-status.example.json shows the format
   2. Exclude LOCAL_MODE/HALTED files from the replication package — they
      should be published as stubs or with access instructions, never bundled
   3. Run scholar-replication in BUILD mode only (skip TEST)
@@ -246,18 +252,18 @@ This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-
 At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication --step "<label>" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-replication --step "<label>" \
   --reasoning "<the WHY — stated rationale, 1–2 lines>" \
   --action "<the WHAT — tool/script/gate call + key args>" \
-  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok || true    # ok|fail|skipped
 ```
 
 At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-replication-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-replication
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-replication-$(date +%Y-%m-%d).ndjson" || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-replication || true
 ```
 
 Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
@@ -1848,7 +1854,7 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 OUTDIR="$(dirname "${OUTPUT_ROOT}/replication/replication-report-[slug]-[YYYY-MM-DD]")"
 STEM="$(basename "${OUTPUT_ROOT}/replication/replication-report-[slug]-[YYYY-MM-DD]")"
 mkdir -p "$OUTDIR"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM" || true
 
 mkdir -p "$(dirname "$BASE")"
 

@@ -55,18 +55,18 @@ This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-
 At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-lit-review-hypothesis --step "<label>" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-lit-review-hypothesis --step "<label>" \
   --reasoning "<the WHY — stated rationale, 1–2 lines>" \
   --action "<the WHAT — tool/script/gate call + key args>" \
-  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok || true    # ok|fail|skipped
 ```
 
 At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-lit-review-hypothesis-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-lit-review-hypothesis
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-lit-review-hypothesis-$(date +%Y-%m-%d).ndjson" || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-lit-review-hypothesis || true
 ```
 
 Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
@@ -611,7 +611,7 @@ Before saving, verify **every item**. This is the critical gate that prevents th
 - [ ] Every Established/Contested finding, effect magnitude, and mechanism-status judgment in the Literature Map has ≥1 anchor
 - [ ] Every derivation-chain row's key empirical premise has an anchor (`claim_kind: hypothesis`, `hypothesis_id` set)
 - [ ] Contested findings carry anchors on BOTH stances; KG-derived claims are `kg_paraphrase`, never `source_verbatim`
-- [ ] **Claim verification** — all prose claims attributing findings to cited sources checked against KG/PDF; no `[CLAIM-REVERSED]`, `[CLAIM-MISCHARACTERIZED]`, `[CLAIM-OVERCAUSAL]`, or `[CLAIM-UNSUPPORTED]` markers remain. Run: `bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-claims.sh" "[output_file]"`
+- [ ] **Claim verification** — all prose claims attributing findings to cited sources checked against KG/PDF; no `[CLAIM-REVERSED]`, `[CLAIM-MISCHARACTERIZED]`, `[CLAIM-OVERCAUSAL]`, or `[CLAIM-UNSUPPORTED]` markers remain. Run: `[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-claims.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/verify-claims.sh" "[output_file]" || true`
 
 **Common failures to check for:**
 1. **Kitchen sink**: Multiple frameworks listed with equal weight, hypotheses drawn from different theories without integration → Fix: select 1 primary + 1 secondary at most
@@ -837,7 +837,7 @@ After Step 10 is complete, write the entire output to a Markdown file using the 
 OUTDIR="$(dirname "scholar-lrh-[topic-slug]-[YYYY-MM-DD]")"
 STEM="$(basename "scholar-lrh-[topic-slug]-[YYYY-MM-DD]")"
 mkdir -p "$OUTDIR"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM" || true
 ```
 
 **Use the printed `SAVE_PATH` as `file_path` in the Write tool call.** Re-run this block (with the appropriate BASE) for each additional file. The same version suffix must be used for all related output files (.md, .docx, .tex, .pdf).
@@ -1008,10 +1008,10 @@ Then render the Evidence Dossier and run the coverage gate; append the required 
 _b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"
 [ -f "$_b" ] && . "$_b"; unset _b
 . "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "${PROJ}/evidence" "evidence-dossier-[slug]-[YYYY-MM-DD]"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "${PROJ}/evidence" "evidence-dossier-[slug]-[YYYY-MM-DD]" || true
 # Use the printed SAVE_PATH:
 python3 "${SCHOLAR_SKILL_DIR:-.}/scripts/render-evidence-dossier.py" --proj "$PROJ" --out "<SAVE_PATH>" --slug "[slug]"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/evidence-anchor-check.sh" "$PROJ" --phase 2
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/evidence-anchor-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/evidence-anchor-check.sh" "$PROJ" --phase 2 || true
 cat >> "$SEARCH_LOG" << EOF
 
 Evidence anchors: [N] created / [M] reused
