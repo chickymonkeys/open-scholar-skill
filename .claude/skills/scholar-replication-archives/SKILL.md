@@ -6,7 +6,6 @@ description: >
   when finding reproducibility artifacts for a paper, validating package provenance,
   or comparing repository coverage and access constraints before recommending a
   deposit.
-tools: Read, Bash, WebSearch, WebFetch, Glob, Grep
 argument-hint: "[paper citation or title | author name(s) | DOI | repository keyword]"
 user-invocable: true
 ---
