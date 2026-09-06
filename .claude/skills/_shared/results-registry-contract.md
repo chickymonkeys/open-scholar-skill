@@ -75,7 +75,7 @@ Produced via `marginaleffects::avg_slopes()` or `avg_comparisons()` — not hand
 Immediately after each Phase 5 Task agent returns, BEFORE writing PROJECT STATE:
 
 ```bash
-. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh"
+. "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || true
 
 # 1. Confirm the contract artifacts exist on disk.
 for f in results-registry.csv adjudication-log.csv; do

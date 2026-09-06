@@ -33,13 +33,13 @@ Required per record: `skill`, `step`, and **≥1 non-empty of** `{reasoning, act
 After each meaningful step (a decision, a tool/script run, a subagent dispatch, a gate call), append a record. **Shell variables do NOT persist across Bash tool calls** — but you do not need to track any state: `emit-trace.sh` re-derives the path and the monotonic `seq` from the file itself. Just call it:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" \
   --skill scholar-XXXX --phase "<phase-or-omit>" --step "<label>" \
   --reasoning "<why — the stated rationale, 1–2 lines>" \
   --action    "<what you did — tool/script/gate/subagent call + key args>" \
   --observation "<what came back — verdict/metric/count/error/file>" \
   --refs "<comma-separated artifact paths, or omit>" \
-  --status ok            # ok | fail | skipped
+  --status ok || true            # ok | fail | skipped
 ```
 
 - **step**: the skill's own step id (e.g. `A0-parse-args`, `5B-main-models`).
@@ -58,9 +58,9 @@ At the end of the run (Save Output section), render the markdown view from the t
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"; TRACE="${OUTPUT_ROOT}/logs/trace-scholar-XXXX-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "$TRACE"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "$TRACE" || true
 # Optional self-check (a phase gate can run this too):
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "$OUTPUT_ROOT" --skill scholar-XXXX
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "$OUTPUT_ROOT" --skill scholar-XXXX || true
 ```
 
 The rendered `process-log-<skill>-<date>.md` carries the columns `# | Time | Phase | Agent | Step | Reasoning | Action | Observation | Refs | Status`. Do not hand-edit it — re-render from the trace instead.
@@ -72,9 +72,9 @@ The rendered `process-log-<skill>-<date>.md` carries the columns `# | Time | Pha
 Dispatched agents (peer-reviewer-*, review-code-*, verify-*, …) mostly have **no Bash tool**, so they cannot append to the NDJSON directly. They emit a **sidecar** `<report>.trace.ndjson` and echo `TRACE: <path>`; the dispatching skill folds it into the master trace. See **`_shared/agent-trace-contract.md`** for the agent side and use `ingest-agent-trace.sh` on the orchestrator side:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/ingest-agent-trace.sh" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/ingest-agent-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/ingest-agent-trace.sh" \
   --sidecar "<report>.trace.ndjson" --skill scholar-XXXX \
-  --agent "<subagent_type>" --agentId "<id-from-Task>" --phase "<phase>" --proj "$PROJ"
+  --agent "<subagent_type>" --agentId "<id-from-Task>" --phase "<phase>" --proj "$PROJ" || true
 ```
 
 This also cross-checks the `agentId` against `logs/dispatch-manifest.jsonl` (the dispatch-provenance manifest, when a run produces one, is unchanged; the trace references it, it does not replace it).

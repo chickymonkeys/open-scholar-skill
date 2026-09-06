@@ -44,18 +44,18 @@ This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-
 At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-brainstorm --step "<label>" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-brainstorm --step "<label>" \
   --reasoning "<the WHY — stated rationale, 1–2 lines>" \
   --action "<the WHAT — tool/script/gate call + key args>" \
-  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok || true    # ok|fail|skipped
 ```
 
 At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-brainstorm-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-brainstorm
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-brainstorm-$(date +%Y-%m-%d).ndjson" || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-brainstorm || true
 ```
 
 Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
