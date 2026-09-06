@@ -34,7 +34,7 @@ This open-source release intentionally **does not include** `scholar-full-paper`
 
 It **does** include `scholar-auto-research`, a stable, deterministic pipeline that chains the modular skills from idea or data to a verified manuscript — but **this is not autonomous research, and we do not endorse using it as such.** It differs from the orchestrators above in three ways that are designed to keep you in control: (1) a mandatory **human-in-the-loop mode** that stops for your explicit approval between phases (`set-mode human-in-loop`); (2) deterministic, auditable gates at every phase — results locks, citation-metadata verification, four-agent manuscript verification, and a journal-calibrated quality review — that surface what to inspect rather than hide it; and (3) a hard rule that the specialist skills (`scholar-write`, `scholar-citation`, `scholar-respond`, …) do the substantive scholarly work, so no helper script silently becomes the author of your argument, literature synthesis, or citations. **You remain the author of the research question, the argument, and every interpretation.** Run it in autonomous mode only when you will independently verify every output it produces — the same standard as point 2 in [Ethical Use](#ethical-use-of-ai-in-academic-research) above. When in doubt, run the skills individually and stay in the loop at every step.
 
-The 34 modular skills provided here are the same building blocks. You are encouraged to build your own workflow by chaining skills in the order that fits your research process. A typical pipeline looks like:
+The 35 modular skills provided here are the same building blocks. You are encouraged to build your own workflow by chaining skills in the order that fits your research process. A typical pipeline looks like:
 
 ```
 /scholar-init (set up project + data safety)
@@ -121,7 +121,7 @@ If you are using open-scholar-skill to generate papers, you are encouraged to sh
 
 > **Trademark Notice:** Journal names listed above and throughout this project are trademarks of their respective publishers. They are used here for identification and formatting purposes only. This project is not affiliated with or endorsed by any journal or publisher.
 
-## Skills Overview (35 skills + 1 utility = 36 total)
+## Skills Overview (36 skills + 1 utility = 37 total)
 
 ### Research Pipeline (Orchestrator)
 
@@ -163,6 +163,7 @@ If you are using open-scholar-skill to generate papers, you are encouraged to sh
 | `scholar-simulate` | `/scholar-simulate` | LLM-powered social simulation at scale: silicon sampling, generative ABM, survey/vignette/conjoint experiments, opinion dynamics. Ships a real execution engine (multi-provider Batch APIs + local async concurrency), not in-context snippets; multi-provider (Anthropic/OpenAI/open-source/local). **Mandatory human-data fidelity validation before any publishable claim** — simulated respondents do not substitute for human data. |
 | `scholar-open` | `/scholar-open` | Preregistration, data sharing, code packaging, open access |
 | `scholar-replication` | `/scholar-replication` | Build, document, test, verify, and archive journal-ready replication packages (EDA outputs, artifact registry, format verification) |
+| `scholar-replication-archives` | `/scholar-replication-archives` | Locate other researchers' deposited replication packages, code bundles, and datasets across Dataverse, OpenICPSR/ICPSR, OSF, Zenodo, and GitHub, with provenance, access constraints, and repository-complete coverage |
 | `scholar-qual` | `/scholar-qual` | Qualitative methods: open/axial/selective coding, thematic analysis, content analysis, LLM-assisted coding with human validation, mixed-methods integration, inter-coder reliability |
 | `scholar-ling` | `/scholar-ling` | 9 modular modules: variationist, quantitative, qualitative, attitudes/matched guise, corpus, computational socioling, experimental, Biber MDA, TTS-MGT |
 | `scholar-collaborate` | `/scholar-collaborate` | Multi-author collaboration: CRediT roles, task management, mentoring, conflict resolution |
@@ -230,7 +231,7 @@ bash setup.sh
 1. Create symlinks (`skills/` → `.claude/skills/`, `agents/` → `.claude/agents/`)
 2. Auto-detect your Zotero library (or prompt for path)
 3. Optionally configure BibTeX, EndNote, and CrossRef email
-4. Install all 35 skills + 20 agents as **personal skills** in `~/.claude/skills/` and `~/.claude/agents/` — installed per-entry alongside any existing personal skills
+4. Install all 36 skills + 20 agents as **personal skills** in `~/.claude/skills/` and `~/.claude/agents/` — installed per-entry alongside any existing personal skills
 5. Register the PreToolUse data-safety hook in `~/.claude/settings.json` (idempotent; preserves existing settings)
 6. Check for `jq` and `python3` (required by the data-safety hook)
 7. Write a `.env` file with your configuration
