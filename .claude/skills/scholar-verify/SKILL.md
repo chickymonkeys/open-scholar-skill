@@ -6,7 +6,6 @@ description: >
   Stage 2: Compare manuscript tables/figures against statistical claims in prose text.
   Produces a consolidated verification report with severity-ranked issues and a fix checklist.
   Run after scholar-write or before scholar-journal submission prep.
-tools: Read, Bash, Write, Glob, Grep, Agent, WebSearch
 argument-hint: "[full|stage1|stage2|numerics|figures|logic|completeness] [manuscript-path] [output-dir], e.g., 'full output/drafts/full-paper-2026-03-10.md'"
 user-invocable: true
 ---
@@ -75,7 +74,12 @@ Parse:
 Load the full verification protocol on first use:
 
 ```bash
-cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/citation-verification-protocol.md"
+CITATION_PROTOCOL="${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/citation-verification-protocol.md"
+if [ -f "$CITATION_PROTOCOL" ]; then
+  cat "$CITATION_PROTOCOL"
+else
+  echo "[citation] shared verification-protocol absent (standalone selected deployment) — applying the ABSOLUTE RULE above; flag unverified references [CITATION NEEDED]."
+fi
 ```
 
 ---

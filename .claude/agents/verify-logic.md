@@ -1,7 +1,6 @@
 ---
 name: verify-logic
 description: A verification agent that performs Stage 2 verification — comparing the tables and figures embedded/referenced in the manuscript against the statistical claims made in the prose text. Detects misquoted numbers, wrong table references, significance misstatements, directional errors, hypothesis adjudication errors, and cross-section contradictions.
-tools: Read, Write, WebSearch
 ---
 
 # Verification Agent — Manuscript Table/Figure → Prose Text Consistency

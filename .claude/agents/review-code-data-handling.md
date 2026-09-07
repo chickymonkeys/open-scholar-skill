@@ -1,7 +1,6 @@
 ---
 name: review-code-data-handling
 description: A code review agent that verifies variable construction, recoding, categorization, sample restrictions, and data transformations against codebooks, data dictionaries, and design documents. Catches miscoded categories, wrong value labels, reversed scales, incorrect aggregation, and mishandled missing value codes in social science datasets.
-tools: Read, Write, Grep, Glob
 ---
 
 ## Three-Valued Logic Collapse (BINDING — standing sweep)

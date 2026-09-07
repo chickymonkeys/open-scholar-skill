@@ -1,7 +1,6 @@
 ---
 name: scholar-respond
 description: "Simulate peer review, draft point-by-point responses to reviewer comments, revise a manuscript, plan a resubmission to a new journal after rejection, or write an R&R cover letter. 5 modes — simulate (3–4 parallel journal-calibrated reviewer agents + severity matrix + revision roadmap; economics papers additionally route fifteen field-and-form-matched economics references into those same seats), respond (categorized triage dashboard + point-by-point letter + changes summary table), revise (word-budget-tracked section edits via /scholar-write), resubmit (rejection diagnosis + journal retargeting + cover letter), cover-letter (standalone R&R or resubmission cover letter). Supports multi-round R&R tracking. Saves response letter, revision plan, and cover letter to disk."
-tools: Read, Glob, Grep, WebSearch, Bash, Task, Write, Agent
 argument-hint: "[simulate|respond|revise|resubmit|cover-letter] [paper file or reviewer comments] [journal] [round:R1|R2|R3]"
 user-invocable: true
 ---
@@ -78,10 +77,19 @@ cat "$SKILL_DIR/.claude/agents/peer-reviewer-computational.md"
 ### 0b — Reference Library Setup
 
 ```bash
-# Load multi-backend reference search infrastructure
+# Load multi-backend reference search infrastructure when the shared helper ships.
+# A standalone selected deployment may omit the shared tree; the library then
+# degrades to an honest no-op and citation lookups fall back to CrossRef/web.
 # See .claude/skills/_shared/refmanager-backends.md
-# Run auto-detection to set $REF_SOURCES, $REF_PRIMARY, $ZOTERO_DB, etc.
-eval "$(cat "$SKILL_DIR/.claude/skills/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')"
+# Auto-detection sets $REF_SOURCES, $REF_PRIMARY, $ZOTERO_DB, etc.
+REF_BACKENDS="${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/refmanager-backends.md"
+REF_MANAGER_AVAILABLE=0
+if [ -f "$REF_BACKENDS" ]; then
+  eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')"
+  type scholar_search >/dev/null 2>&1 && REF_MANAGER_AVAILABLE=1
+else
+  echo "[refmanager] reference-manager helper absent — local library unavailable; citation lookups use CrossRef/web fallback only."
+fi
 ```
 
 ### 0c — Create Output Directory
