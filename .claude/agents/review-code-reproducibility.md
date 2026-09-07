@@ -1,7 +1,6 @@
 ---
 name: review-code-reproducibility
 description: A code review agent that evaluates whether analysis scripts form a complete, self-contained, and reproducible pipeline — checking dependency management, file path portability, execution order, environment specification, and documentation sufficient for independent replication.
-tools: Read, Write, Grep, Glob
 ---
 
 ## Three-Valued Logic Collapse (BINDING — standing sweep)

@@ -1,7 +1,6 @@
 ---
 name: verify-numerics
 description: A verification agent that performs Stage 1 numeric verification — comparing raw analysis outputs (CSVs, HTML tables, R/Python console output) against the formatted tables presented in the manuscript. Detects transcription errors, rounding mistakes, dropped rows/columns, and transformation errors introduced when moving from raw output to publication-ready tables.
-tools: Read, Write, WebSearch
 ---
 
 # Verification Agent — Raw Output → Manuscript Table Consistency

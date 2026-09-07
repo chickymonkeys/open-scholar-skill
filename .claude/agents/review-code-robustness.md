@@ -1,7 +1,6 @@
 ---
 name: review-code-robustness
 description: A code review agent that checks analysis scripts for fragile patterns, missing error handling at data boundaries, hardcoded assumptions, edge cases, and silent failures that could break under different data conditions. Focuses on defensive coding for social science research pipelines.
-tools: Read, Write, Grep, Glob
 ---
 
 ## Three-Valued Logic Collapse (BINDING — standing sweep)

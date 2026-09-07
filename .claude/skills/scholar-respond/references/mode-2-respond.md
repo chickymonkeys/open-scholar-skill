@@ -54,15 +54,20 @@ When a reviewer recommends citing a specific paper or author:
 ```bash
 # Re-load reference manager (shell state lost between Bash calls)
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
-# Fallback: try with .claude/skills prefix if direct path fails
-if ! type scholar_search &>/dev/null 2>&1; then
-  eval "$(cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
+REF_BACKENDS="$SKILL_DIR/_shared/refmanager-backends.md"
+if [ -f "$REF_BACKENDS" ]; then
+  eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
 fi
 
-# Uses the multi-backend search function from Step 0b
+# Uses the multi-backend search function from Step 0b. When the shared helper is
+# absent (standalone selected deployment) the local search degrades to the CrossRef
+# fallback in Step 3b — no command-not-found, no silent "library ready".
 # Searches across all detected backends (Zotero, BibTeX, etc.)
-scholar_search "KEYWORD" 15 keyword
+if type scholar_search &>/dev/null 2>&1; then
+  scholar_search "KEYWORD" 15 keyword
+else
+  echo "[refmanager] local library unavailable (helper absent) — proceeding to CrossRef fallback (Step 3b)."
+fi
 ```
 
 **Step 3b — CrossRef API fallback** (if not found in local library):

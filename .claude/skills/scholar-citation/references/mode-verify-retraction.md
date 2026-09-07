@@ -24,13 +24,19 @@ For each reference, search all detected local backends (Zotero, Mendeley, BibTeX
 ```bash
 # Re-load reference manager (shell state lost between Bash calls)
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
+REF_BACKENDS="$SKILL_DIR/_shared/refmanager-backends.md"
+[ ! -f "$REF_BACKENDS" ] && REF_BACKENDS="$SKILL_DIR/scholar-citation/references/refmanager-backends.md"
+if [ -f "$REF_BACKENDS" ]; then eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null; fi
 
-# Title keyword match (use first 3-5 distinctive title words)
-scholar_search "TITLE_KEYWORDS" 5 keyword
-
-# Author match
-scholar_search "AUTHOR_LASTNAME" 5 author
+# Title keyword match (use first 3-5 distinctive title words). When the helper is absent
+# (standalone selected deployment), local verification is unavailable: flag the reference
+# instead of silently passing it.
+if type scholar_search >/dev/null 2>&1; then
+  scholar_search "TITLE_KEYWORDS" 5 keyword
+  scholar_search "AUTHOR_LASTNAME" 5 author
+else
+  echo "[refmanager] local library unavailable (helper absent) — reference cannot be VERIFIED-LOCAL; flag [CITATION NEEDED] and continue to Tier 2."
+fi
 ```
 
 **Local library match criteria:**
@@ -107,19 +113,28 @@ For references NOT verified via local library or CrossRef, query Semantic Schola
 ```bash
 # Re-load reference manager (shell state lost between Bash calls)
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
+REF_BACKENDS="$SKILL_DIR/_shared/refmanager-backends.md"
+[ ! -f "$REF_BACKENDS" ] && REF_BACKENDS="$SKILL_DIR/scholar-citation/references/refmanager-backends.md"
+if [ -f "$REF_BACKENDS" ]; then eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null; fi
 
-# Semantic Scholar — by DOI (if available)
-scholar_verify_semanticscholar_doi "DOI_HERE"
+# When the helper is absent (standalone selected deployment), these Tier 2b/2c
+# verifiers are unavailable: mark the reference UNVERIFIED rather than claiming a
+# Semantic Scholar / OpenAlex confirmation that never ran.
+if type scholar_search >/dev/null 2>&1; then
+  # Semantic Scholar — by DOI (if available)
+  scholar_verify_semanticscholar_doi "DOI_HERE"
 
-# Semantic Scholar — by title keywords
-scholar_search_semanticscholar_keyword "TITLE KEYWORDS" 5
+  # Semantic Scholar — by title keywords
+  scholar_search_semanticscholar_keyword "TITLE KEYWORDS" 5
 
-# OpenAlex — by DOI (if available)
-scholar_verify_openalex_doi "DOI_HERE"
+  # OpenAlex — by DOI (if available)
+  scholar_verify_openalex_doi "DOI_HERE"
 
-# OpenAlex — by title keywords
-scholar_search_openalex_keyword "TITLE KEYWORDS" 5
+  # OpenAlex — by title keywords
+  scholar_search_openalex_keyword "TITLE KEYWORDS" 5
+else
+  echo "[refmanager] verification helper absent — Tier 2b/2c unavailable; flag [CITATION NEEDED] and do NOT mark VERIFIED-S2 / VERIFIED-OPENALEX."
+fi
 ```
 
 **Semantic Scholar advantages:** Better coverage for preprints, working papers, CS/social science crossover papers, and citation graph data.
@@ -137,13 +152,21 @@ For references NOT verified via local library, CrossRef, Semantic Scholar, or Op
 ```bash
 # Re-load reference manager (shell state lost between Bash calls)
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
+REF_BACKENDS="$SKILL_DIR/_shared/refmanager-backends.md"
+[ ! -f "$REF_BACKENDS" ] && REF_BACKENDS="$SKILL_DIR/scholar-citation/references/refmanager-backends.md"
+if [ -f "$REF_BACKENDS" ]; then eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null; fi
 
-# Google Scholar — by title + author keywords
-scholar_search_google_scholar "AUTHOR TITLE KEYWORDS" 3
+# When the helper is absent (standalone selected deployment), Tier 2d is unavailable:
+# mark UNVERIFIED rather than claiming a Google Scholar confirmation that never ran.
+if type scholar_search >/dev/null 2>&1; then
+  # Google Scholar — by title + author keywords
+  scholar_search_google_scholar "AUTHOR TITLE KEYWORDS" 3
 
-# Or verify a specific paper
-scholar_verify_google_scholar "EXACT TITLE" "AUTHOR LAST NAME"
+  # Or verify a specific paper
+  scholar_verify_google_scholar "EXACT TITLE" "AUTHOR LAST NAME"
+else
+  echo "[refmanager] verification helper absent — Tier 2d unavailable; flag [CITATION NEEDED] and do NOT mark VERIFIED-GOOGLE."
+fi
 ```
 
 **Google Scholar advantages:** Broadest academic coverage — books, theses, dissertations, working papers, non-English publications, government reports, and conference proceedings often missing from CrossRef/OpenAlex. Also provides citation counts.
@@ -266,10 +289,17 @@ For claims that cannot be verified from the knowledge graph (paper not in KG, or
 
 ```bash
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
+REF_BACKENDS="$SKILL_DIR/_shared/refmanager-backends.md"
+[ ! -f "$REF_BACKENDS" ] && REF_BACKENDS="$SKILL_DIR/scholar-citation/references/refmanager-backends.md"
+if [ -f "$REF_BACKENDS" ]; then eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null; fi
 
-# Search for the paper to get Zotero storage key
-scholar_search "AUTHOR_LASTNAME TITLE_KEYWORDS" 3 keyword
+# Search for the paper to get Zotero storage key; when the helper is absent (standalone
+# selected deployment), flag [CITATION NEEDED] instead of a bare command-not-found.
+if type scholar_search >/dev/null 2>&1; then
+  scholar_search "AUTHOR_LASTNAME TITLE_KEYWORDS" 3 keyword
+else
+  echo "[refmanager] local library unavailable (helper absent) — cannot locate Zotero storage key; flag [CITATION NEEDED]."
+fi
 ```
 
 ```bash

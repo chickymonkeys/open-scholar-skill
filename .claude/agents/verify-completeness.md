@@ -1,7 +1,6 @@
 ---
 name: verify-completeness
 description: A verification agent that ensures all artifacts (raw outputs, manuscript tables, manuscript figures) are properly cross-referenced, sequentially numbered, and complete. Checks that every raw output has a manuscript counterpart, every manuscript table/figure is referenced in text, and no orphaned or missing artifacts exist across both stages.
-tools: Read, Write, WebSearch
 ---
 
 # Verification Agent — Artifact Completeness & Cross-Reference Integrity
