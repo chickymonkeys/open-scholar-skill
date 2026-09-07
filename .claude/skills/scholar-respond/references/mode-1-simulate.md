@@ -25,6 +25,10 @@ Identify:
 - Key findings
 - Claimed contribution
 - Word count (estimate or exact)
+- **Economics?** Whether the paper is an economics paper — the journal row selected in Step 2 has
+  `Persona = economist`, or the manuscript is economics whatever journal it names. If it is, Step 2.5
+  routes the economics layer; if it is not, Step 2.5 is skipped and MODE 1 runs exactly as it does
+  for any other paper.
 
 ### Step 1.5: Desk-Reject Risk Assessment (before full review simulation)
 
@@ -82,9 +86,45 @@ Before spawning agents, identify the journal-specific reviewer persona and prior
 | **RJE** | economist | Empirical or theoretical rigor; critical assessment of supporting material | Industrial-organization contribution and originality | Quality, originality, significance to readers |
 | **JME** | economist | Reproducible data, code, models, algorithms; robustness and computational experiments | Macroeconomic contribution; proof and model clarity | Main paper stands alone; significance to macroeconomics readers |
 
+### Step 2.5: Economics Layer Routing (economics papers only)
+
+Skip this step unless Step 1 marked the paper as economics.
+
+The economics layer is fifteen routed references that live inside this mode. It adds no reviewer
+seat and changes no spawn logic: the seats spawned in Step 3 are the ones below, and this layer
+decides **what each of them reads**.
+
+```bash
+SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}"
+cat "$SKILL_DIR/.claude/skills/scholar-respond/references/econ/router.md"
+```
+
+Follow the router's three steps — classify the paper on the two composable axes (economic field or
+topic × methodological form), read the route off its table, and assign each routed reference to a
+seat. A **mixed paper receives the union** of the forms it carries. Write the resulting route down;
+it goes in the report appendix, and the verification checklist at the end of this reference checks
+the report against it.
+
+The route names a set of the fifteen: identification, robustness, mechanism, external validity,
+structural, theory, experimental, descriptive, data construction, economic magnitude,
+preregistration, reproducibility, transparency, blindspot, contribution. Blindspot is the exception
+— it is a cross-cutting Opportunities mode the synthesis runs in Step 4, after the validity checks
+return, not a seat's reading.
+
 ### Step 3: Spawn Reviewer Agents
 
 Use the Task tool to run reviewers **in parallel**. The reviewer prompts come from the agent .md files read in Step 0.
+
+**On an economics route**, append one paragraph to each seat's prompt below, naming the files that
+seat reads and nothing else:
+
+> "Before reviewing, read `references/econ/protocol.md` — the reading principles, finding schema,
+> report structure, decision rubric and conduct rules — and then the routed references assigned to
+> your seat: [paths from the Step 2.5 seat assignment]. Apply the checks in those references and no
+> others. Every finding cites a page, equation, table or section; where a claim cannot be verified
+> without rerunning the analysis, say that it could not be verified rather than assuming it is
+> wrong. Comment on the paper; do not rewrite the authors' prose. Rate your recommended decision on
+> the five-point rubric in `protocol.md`, which replaces the four-value rating named below."
 
 **Always spawn these three**:
 
@@ -206,6 +246,71 @@ Estimated total revision effort: [X days/weeks]
 Estimated word count impact: [+/- N words] → projected total: [N] (limit: [N])
 ```
 
+#### Step 4e: The Economics Referee Report (economics route only)
+
+On an economics route the letter above gains five sections and one calibration. Everything else in
+the letter stays where it is: the reviewer bodies, the Severity × Confidence Matrix and the Revision
+Roadmap are unchanged.
+
+**The calibration.** The `Decision:` line takes the five-point economics rubric in
+`references/econ/protocol.md` — Accept | Minor Revision | Major Revision | Reject-and-Resubmit |
+Reject — in place of the four-value line above. Reject-and-Resubmit is the value the four-point line
+has no room for: addressable, but with acceptance probability below one half.
+
+**Blindspot runs here, and only here.** Once the routed validity checks have returned, read
+`references/econ/blindspot.md` and synthesise the Opportunities section. It runs after the validity
+checks because an opportunity attached to a design that fails Essential Point 1 is noise.
+
+```bash
+SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}"
+cat "$SKILL_DIR/.claude/skills/scholar-respond/references/econ/blindspot.md"
+```
+
+Append the five sections to the letter:
+
+```
+===== ECONOMICS REFEREE REPORT =====
+
+--- 1. SUMMARY + RECOMMENDATION ---
+[1–2 paragraphs showing the editor the paper was understood. State the paper's ONE central novel
+contribution in a single sentence before the recommendation; the rest of the summary supports it.
+Flag unclear exposition.]
+
+Decision: [Accept | Minor Revision | Major Revision | Reject-and-Resubmit | Reject]
+[For Major Revision or Reject-and-Resubmit: the specific conditions for eventual acceptance.
+For Reject: the fundamental flaw.]
+
+--- 2. ESSENTIAL POINTS (at most three) ---
+1. [Title] — [what fails, citing page / equation / table; why the paper cannot be published without
+   it being addressed; the reading principle it rests on, e.g. "P3 — identifying variation".
+   Name the problem; do not write the authors' replacement text.]
+2. [...]
+3. [...]
+[Do not pad to three. More than three CRITICAL findings means the recommendation gets more severe,
+not the report longer.]
+
+--- 3. SUGGESTIONS (non-binding) ---
+### [Routed dimension]
+[Findings, or "None." — one heading per routed reference, in the order the route listed them.]
+
+--- 4. OPPORTUNITIES (virtue-side, non-binding) ---
+1. The paper could also [___], because it already has [___].
+[Never escalates the recommendation; never counts toward the Essential-Points cap; never enters the
+Severity × Confidence Matrix.]
+
+--- 5. APPENDIX: ROUTE AND ROUTED FINDINGS ---
+Route: form(s) [...] matched on [vocabulary]; field [...] tuned [...]; modern-methods trigger
+[fired / did not fire]; references read [...]; seats [...].
+
+### [Dimension] Audit
+[ID-001 ...] — one line per finding, with its stable id.
+
+Not verified: [every claim the report could not check without rerunning the analysis.]
+```
+
+The last line is not optional. The report says what it could not check; it never implies it found
+everything.
+
 ---
 
 ## MODE Verification Checklist
@@ -219,5 +324,12 @@ After completing the mode, run a verification check via the Task tool; pass this
 > 3. Severity matrix is consistent with review content;
 > 4. Revision roadmap addresses all critical and major items;
 > 5. No reviewer concern is missing from the action plan;
+>
+> On an economics route, also check:
+> 6. Every routed dimension in the appendix route has a Suggestions heading, findings or "None";
+> 7. Essential Points number three or fewer, each cites a location and names its reading principle;
+> 8. Opportunities are non-binding — none escalates the decision or appears in the severity matrix;
+> 9. The decision uses the five-point rubric, including Reject-and-Resubmit where it applies;
+> 10. No finding rewrites the authors' prose, and the "Not verified" line is present;
 >
 > Flag any issues found. Output: [pass/fail] + [list of issues if any]."
