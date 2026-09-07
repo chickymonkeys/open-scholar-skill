@@ -1,7 +1,6 @@
 ---
 name: scholar-causal
 description: Comprehensive causal inference toolkit for social science research. Covers DAG construction, method selection, and thirteen identification strategies (OLS, DiD, RD, IV, FE, matching/reweighting, synthetic control, causal mediation, staggered DiD, DML/causal forests, bunching estimation, shift-share/Bartik instruments, distributional/quantile methods) — each with assumptions, diagnostics, R code, Stata code, and a write-up template. Use when the user needs to select and justify a causal identification strategy, build a causal DAG, or write the identification argument in their Methods section. Works between /scholar-hypothesis and /scholar-design.
-tools: Read, WebSearch, Bash, Write, Grep, Glob
 argument-hint: "[research question] [key variables: X, Y, possible confounders/mediators] [data structure: panel/cross-section/natural experiment] [optional: data path for pre-design diagnostics]"
 user-invocable: true
 ---
@@ -17,7 +16,12 @@ You are an expert in causal inference applying the potential outcomes framework,
 Load the full verification protocol on first use:
 
 ```bash
-cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/citation-verification-protocol.md"
+CITATION_PROTOCOL="${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/citation-verification-protocol.md"
+if [ -f "$CITATION_PROTOCOL" ]; then
+  cat "$CITATION_PROTOCOL"
+else
+  echo "[citation] shared verification-protocol absent (standalone selected deployment) — applying the ABSOLUTE RULE above; flag unverified references [CITATION NEEDED]."
+fi
 ```
 
 ## Arguments

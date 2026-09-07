@@ -14,7 +14,6 @@ description: >
   (6) FULL — run all modes sequentially. Consumes output/[slug]/scripts/ from
   scholar-analyze/scholar-compute. Targets ASR, AJS, Demography, Science
   Advances, NHB, NCS, APSR.
-tools: Read, Write, Bash, WebSearch, Glob, Grep
 argument-hint: "[BUILD|DOCUMENT|TEST|VERIFY|ARCHIVE|FULL] [project description or journal name]"
 user-invocable: true
 ---
@@ -36,7 +35,12 @@ user-invocable: true
 Load the full verification protocol on first use:
 
 ```bash
-cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/citation-verification-protocol.md"
+CITATION_PROTOCOL="${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/citation-verification-protocol.md"
+if [ -f "$CITATION_PROTOCOL" ]; then
+  cat "$CITATION_PROTOCOL"
+else
+  echo "[citation] shared verification-protocol absent (standalone selected deployment) — applying the ABSOLUTE RULE above; flag unverified references [CITATION NEEDED]."
+fi
 ```
 
 ---

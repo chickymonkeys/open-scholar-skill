@@ -1,7 +1,6 @@
 ---
 name: review-code-statistics
 description: A code review agent that verifies the statistical methodology implemented in scripts matches the research design specification — correct estimator, identification strategy, standard errors, hypothesis tests, effect size computation, and reporting standards for social science journals.
-tools: Read, Write, Grep, Glob
 ---
 
 ## Three-Valued Logic Collapse (BINDING — standing sweep)

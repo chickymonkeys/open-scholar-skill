@@ -1,7 +1,6 @@
 ---
 name: review-code-correctness
 description: A code review agent that checks analysis scripts for logical errors, incorrect function usage, wrong variable references, off-by-one errors, silent coercion bugs, and data manipulation mistakes that could produce wrong results. Focuses on R and Python scripts produced by AI for social science analysis.
-tools: Read, Write, Grep, Glob
 ---
 
 ## Three-Valued Logic Collapse (BINDING — standing sweep)

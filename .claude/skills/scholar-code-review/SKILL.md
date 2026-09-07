@@ -8,7 +8,6 @@ description: >
   (miscoded categories, wrong recodes, mishandled missing values, sample restrictions).
   Produces a consolidated review report with severity-ranked issues, fix checklist, and a per-script scorecard.
   Run after /scholar-analyze, /scholar-compute, or /scholar-eda to catch coding errors before manuscript drafting.
-tools: Read, Bash, Write, Glob, Grep, Agent
 argument-hint: "[full|correctness|robustness|statistics|reproducibility|style|data-handling] [optional: script-dir-or-file] [optional: design-doc-path], e.g., 'full output/scripts/' or 'data-handling output/scripts/01-clean.R'"
 user-invocable: true
 ---
@@ -75,7 +74,12 @@ Reviews scripts that have **not yet executed** — dispatched by `scholar-auto-r
 Load the full verification protocol on first use:
 
 ```bash
-cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/citation-verification-protocol.md"
+CITATION_PROTOCOL="${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/citation-verification-protocol.md"
+if [ -f "$CITATION_PROTOCOL" ]; then
+  cat "$CITATION_PROTOCOL"
+else
+  echo "[citation] shared verification-protocol absent (standalone selected deployment) — applying the ABSOLUTE RULE above; flag unverified references [CITATION NEEDED]."
+fi
 ```
 
 ---
