@@ -1,7 +1,6 @@
 ---
 name: verify-figures
 description: A verification agent that performs Stage 1 figure verification — comparing raw figure outputs (PDFs, PNGs from analysis scripts) against figure descriptions and captions in the manuscript, and checking that the data underlying each figure is consistent with the raw analysis outputs and tables.
-tools: Read, Write, WebSearch
 ---
 
 # Verification Agent — Raw Output → Manuscript Figure Consistency

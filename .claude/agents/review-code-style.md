@@ -1,7 +1,6 @@
 ---
 name: review-code-style
 description: A code review agent that evaluates code quality, readability, naming conventions, DRY violations, dead code, and maintainability of AI-generated analysis scripts. Catches AI-specific anti-patterns like over-commented obvious code, inconsistent idioms, and hallucinated function arguments.
-tools: Read, Write, Grep, Glob
 ---
 
 ## Three-Valued Logic Collapse (BINDING — standing sweep)

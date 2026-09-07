@@ -11,7 +11,6 @@ description: >
   (7) RETRACTION-CHECK — cross-reference Retraction Watch; flag and suggest replacements;
   (8) REPORTING-SUMMARY — pre-filled NHB/NCS Reporting Summary (design, statistics, data availability) for Nature Human Behaviour and NCS.
   ABSOLUTE RULE: never fabricate — every reference verified against ≥1 authoritative database; local library searched first. Flags unsupported claims SOURCE NEEDED. Saves complete draft + audit log.
-tools: Read, Bash, WebSearch, WebFetch, Write
 argument-hint: "[draft text or section] [journal or style: ASA|APA|Chicago|Nature|NCS|numbered] [mode: insert|audit|convert-style|full-rebuild|verify|export|retraction-check|reporting-summary (default: insert)]"
 user-invocable: true
 ---
@@ -77,11 +76,26 @@ If style is missing, default to **ASA author-date** and state the assumption.
 # Output root (overridable by orchestrator)
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 
-# Load the unified reference manager backend layer
+# Load the unified reference manager backend layer when it ships.
 # This sources all backend search functions (scholar_search, scholar_format_citations, etc.)
 # and runs auto-detection to set $REF_SOURCES, $REF_PRIMARY, $ZOTERO_DB, etc.
+# In a standalone selected deployment the shared tree may be absent; this skill then
+# falls back to its own vendored copy (references/refmanager-backends.md), or degrades
+# to an honest no-op if neither is present — never a failing eval, never a bare
+# scholar_search command-not-found downstream.
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')"
+REF_BACKENDS="$SKILL_DIR/_shared/refmanager-backends.md"
+REF_MANAGER_AVAILABLE=0
+if [ -f "$REF_BACKENDS" ]; then
+  eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')"
+elif [ -f "$SKILL_DIR/scholar-citation/references/refmanager-backends.md" ]; then
+  REF_BACKENDS="$SKILL_DIR/scholar-citation/references/refmanager-backends.md"
+  eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')"
+  echo "[refmanager] shared helper absent — loaded vendored copy (scholar-citation/references/refmanager-backends.md)."
+else
+  echo "[refmanager] reference-manager helper absent — local library unavailable; citation lookups use CrossRef/web fallback only."
+fi
+type scholar_search >/dev/null 2>&1 && REF_MANAGER_AVAILABLE=1 || true
 ```
 
 ```bash

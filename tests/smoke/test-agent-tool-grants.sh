@@ -18,6 +18,12 @@
 # SLIPS PAST — prose that merely *mentions* a script by name without instructing the agent
 #             to execute it (e.g. "the orchestrator runs X at the exit gate"), and blocks
 #             explicitly marked as orchestrator-side.
+#
+# PERMISSION-FREE SPLIT (ticket 77 portability): the fourteen selected agents are
+# name+description-only definitions — their tool grants come from harness configuration,
+# not frontmatter, so the concept-gap check applies only to the six non-selected agents
+# that still carry a tools: line. A selected agent that regains tools: breaks the harness
+# build's check_definition, so that is ratified separately below.
 
 set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -67,13 +73,31 @@ for f in "$AGENTS"/*.md; do
   fi
 done
 
-[ "$CHECKED" -ge 20 ] \
-  && pass "scanned $CHECKED agent briefs with a tools: frontmatter" \
-  || fail "only $CHECKED agent briefs scanned — expected 20+; is the glob right?"
+[ "$CHECKED" -ge 6 ] \
+  && pass "scanned $CHECKED permissioned agent briefs with a tools: frontmatter" \
+  || fail "only $CHECKED permissioned agent briefs scanned — expected 6+; is the glob right?"
 
 [ "$VIOLATIONS" -eq 0 ] \
-  && pass "no agent brief mandates a tool its frontmatter withholds" \
-  || fail "$VIOLATIONS agent brief(s) mandate a capability they were not granted"
+  && pass "no permissioned agent brief mandates a tool its frontmatter withholds" \
+  || fail "$VIOLATIONS permissioned agent brief(s) mandate a capability they were not granted"
+
+# ---- permission-free contract: the fourteen selected agents carry no tools: line ----
+SELECTED_AGENTS="peer-reviewer-computational peer-reviewer-quant peer-reviewer-senior peer-reviewer-theory \
+review-code-correctness review-code-data-handling review-code-reproducibility review-code-robustness \
+review-code-statistics review-code-style verify-completeness verify-figures verify-logic verify-numerics"
+PF=0
+for agent in $SELECTED_AGENTS; do
+  f="$AGENTS/$agent.md"
+  [ -f "$f" ] || { fail "missing selected agent: $agent.md"; continue; }
+  if grep -q '^tools:' "$f"; then
+    fail "selected agent $agent regained a tools: frontmatter (must stay permission-free)"
+  else
+    PF=$((PF + 1))
+  fi
+done
+[ "$PF" -eq 14 ] \
+  && pass "all 14 selected agents are permission-free (name+description only)" \
+  || fail "only $PF/14 selected agents permission-free"
 
 # ---- model-spec-lint coupling (only where that gate ships) ----------------------
 # The public release does not ship scripts/gates/model-spec-lint.sh, and its

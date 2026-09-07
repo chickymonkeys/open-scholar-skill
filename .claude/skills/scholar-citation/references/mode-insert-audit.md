@@ -57,10 +57,17 @@ For each **unresolved claim** (not yet cited and not in cache), search all detec
 ```bash
 # Re-load reference manager (shell state lost between Bash calls)
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
+REF_BACKENDS="$SKILL_DIR/_shared/refmanager-backends.md"
+[ ! -f "$REF_BACKENDS" ] && REF_BACKENDS="$SKILL_DIR/scholar-citation/references/refmanager-backends.md"
+if [ -f "$REF_BACKENDS" ]; then eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null; fi
 
-# Keyword search across all detected backends
-scholar_search "KEYWORD" 15 keyword | scholar_format_citations
+# Keyword search across all detected backends; degrades to the external-API fallback
+# (I-3) when the helper is absent from a standalone selected deployment.
+if type scholar_search >/dev/null 2>&1; then
+  scholar_search "KEYWORD" 15 keyword | scholar_format_citations
+else
+  echo "[refmanager] local library unavailable (helper absent) — using external-API fallback (I-3)."
+fi
 ```
 
 Run multiple searches per claim varying keywords. For author-specific queries:
@@ -68,10 +75,16 @@ Run multiple searches per claim varying keywords. For author-specific queries:
 ```bash
 # Re-load reference manager (shell state lost between Bash calls)
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
+REF_BACKENDS="$SKILL_DIR/_shared/refmanager-backends.md"
+[ ! -f "$REF_BACKENDS" ] && REF_BACKENDS="$SKILL_DIR/scholar-citation/references/refmanager-backends.md"
+if [ -f "$REF_BACKENDS" ]; then eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null; fi
 
-# Author last name search across all detected backends
-scholar_search "LASTNAME" 20 author | scholar_format_citations
+# Author last name search across all detected backends; same absent-helper fallback.
+if type scholar_search >/dev/null 2>&1; then
+  scholar_search "LASTNAME" 20 author | scholar_format_citations
+else
+  echo "[refmanager] local library unavailable (helper absent) — using external-API fallback (I-3)."
+fi
 ```
 
 #### I-3: External API Fallback (for items not in local library)

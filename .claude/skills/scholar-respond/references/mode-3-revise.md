@@ -54,11 +54,18 @@ Confirm the revision plan with the user before executing.
 **Step 2a — Re-load reference manager** (shell state does not persist between Bash calls):
 ```bash
 SKILL_DIR="${SCHOLAR_SKILL_DIR:-.}/.claude/skills"
-eval "$(cat "$SKILL_DIR/_shared/refmanager-backends.md" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
-echo "REF_SOURCES=$REF_SOURCES | ZOTERO_DB=${ZOTERO_DB:-not found}"
+REF_BACKENDS="$SKILL_DIR/_shared/refmanager-backends.md"
+if [ -f "$REF_BACKENDS" ]; then
+  eval "$(cat "$REF_BACKENDS" | sed -n '/^```bash/,/^```/p' | sed '1d;$d')" 2>/dev/null
+fi
+if type scholar_search &>/dev/null 2>&1; then
+  echo "REF_SOURCES=$REF_SOURCES | ZOTERO_DB=${ZOTERO_DB:-not found}"
+else
+  echo "[refmanager] local library unavailable (helper absent) — REF_SOURCES disabled"
+fi
 ```
 
-This ensures `scholar_search` is available for any citation additions during revisions. When a revision item requires a new citation, call `scholar_search "KEYWORD" 15 keyword` to verify against Zotero/local backends before inserting. Flag any unverified citations as `[CITATION NEEDED]`.
+When the shared helper ships, this makes `scholar_search` available for any citation additions during revisions; when it is absent (standalone selected deployment), the local library is unavailable and lookups skip to the CrossRef/web fallback. When a revision item requires a new citation, call `scholar_search "KEYWORD" 15 keyword` to verify against Zotero/local backends before inserting — and when the local library is unavailable, use the CrossRef/web fallback instead, still flagging any unverified citations as `[CITATION NEEDED]`.
 
 **Step 2b — Load writing skill** for revision execution:
 ```bash
@@ -130,8 +137,14 @@ After all revisions:
 2. Run `scholar-code-review` in `statistics` + `data-handling` + `correctness` mode against the new script, using the Phase 3 design blueprint (if available) or the reviewer's specification as compliance reference. **Save the consolidated report + reviewed-scripts manifest (scholar-code-review Steps 5a/5a.5) BEFORE executing** — the review must be hash-bound to the exact `rr-NN-*.R` bytes that run (`pre-exec-review-check.sh` verifiable); a post-review edit re-enters Step 6 re-review. Apply the **Code-Review Fix Loop** from `cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/code-review-fix-loop.md"`. CRITICAL halts.
 3. Load the registry contract and adjudication rule:
    ```bash
-   cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/results-registry-contract.md"
-   cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/scholar-analyze/references/adjudication-rule.md"
+   # Load when present; in a standalone selected deployment these shared/sibling
+   # references may be absent — the inline gate contract above still applies, with
+   # any schema gaps flagged to the user rather than a bare cat failure.
+   for f in \
+     "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/results-registry-contract.md" \
+     "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/scholar-analyze/references/adjudication-rule.md"; do
+     if [ -f "$f" ]; then cat "$f"; else echo "[mode-3] reference absent: $f — applying inline registry/adjudication contract only."; fi
+   done
    ```
    The new script must emit `${PROJ}/tables/rr-results-registry.csv` and (if hypothesis-bearing) `${PROJ}/tables/rr-adjudication-log.csv` in the same schemas as the originals, appended or separate.
 4. Execute in a clean R session, then run plausibility + direction-consistency + (for ASR/AJS/Demography/Nature/Science) clean-room re-run checks from `cat "${SCHOLAR_SKILL_DIR:-.}/.claude/skills/_shared/phase-runtime-sanity.md"`. CRITICAL halts.
