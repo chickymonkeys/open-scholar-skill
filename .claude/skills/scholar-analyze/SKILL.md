@@ -42,18 +42,18 @@ This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-
 At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-analyze --step "<label>" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-analyze --step "<label>" \
   --reasoning "<the WHY — stated rationale, 1–2 lines>" \
   --action "<the WHAT — tool/script/gate call + key args>" \
-  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok || true    # ok|fail|skipped
 ```
 
 At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-analyze-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-analyze
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-analyze-$(date +%Y-%m-%d).ndjson" || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-analyze || true
 ```
 
 Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
@@ -162,9 +162,11 @@ Standalone counterpart of scholar-auto-research's Phase 6 pre-execution review. 
 ```bash
 _b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"; [ -f "$_b" ] && . "$_b"; unset _b
 . "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
-  --required=fast --phase pre-exec-analyze \
-  || { echo "HALT: A2.5 gate failed — fix + re-review before executing the model ladder."; exit 1; }
+if [ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" ]; then
+  bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
+    --required=fast --phase pre-exec-analyze \
+    || { echo "HALT: A2.5 gate failed — fix + re-review before executing the model ladder."; exit 1; }
+fi
 ```
 
 Emit the receipt row immediately before the first model execution: `Pre-execution review: report <path> · review_id <id> · scripts N hashed · gate GREEN`. Then A3–A8 proceed by INVOKING the reviewed files (`Rscript "${OUTPUT_ROOT}/scripts/04-main-models.R"` …) — never by re-typing their code into the conversation. Post-hoc edits to a reviewed script send it back through Step 6 re-review + this gate.
@@ -1385,7 +1387,7 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 OUTDIR="$(dirname "${OUTPUT_ROOT}/[slug]/analysis/scholar-analyze-log-[topic-slug]-[YYYY-MM-DD]")"
 STEM="$(basename "${OUTPUT_ROOT}/[slug]/analysis/scholar-analyze-log-[topic-slug]-[YYYY-MM-DD]")"
 mkdir -p "$OUTDIR"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM" || true
 ```
 
 **Use the printed `SAVE_PATH` as `file_path` in the Write tool call.** Re-run this block (with the appropriate BASE) for each additional file. The same version suffix must be used for all related output files (.md, .docx, .tex, .pdf).

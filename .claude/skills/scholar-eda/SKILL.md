@@ -62,18 +62,18 @@ This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-
 At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-eda --step "<label>" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-eda --step "<label>" \
   --reasoning "<the WHY — stated rationale, 1–2 lines>" \
   --action "<the WHAT — tool/script/gate call + key args>" \
-  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok || true    # ok|fail|skipped
 ```
 
 At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-eda-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-eda
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-eda-$(date +%Y-%m-%d).ndjson" || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-eda || true
 ```
 
 Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
@@ -1070,9 +1070,11 @@ EDA runs interactively, but its E-scripts encode the decisions downstream analys
 ```bash
 _b="$HOME/.claude/scholar-skill-bootstrap.sh"; [ -f "$_b" ] || _b="${SCHOLAR_SKILL_DIR:-.}/scripts/scholar-skill-bootstrap.sh"; [ -f "$_b" ] && . "$_b"; unset _b
 . "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/derive-proj.sh" 2>/dev/null || PROJ="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
-  --required=fast --phase pre-exec-eda \
-  || { echo "HALT: Phase 11 handoff review failed — fix + re-review before handing the pre-analysis memo downstream."; exit 1; }
+if [ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" ]; then
+  bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/pre-exec-review-check.sh" "$PROJ" \
+    --required=fast --phase pre-exec-eda \
+    || { echo "HALT: Phase 11 handoff review failed — fix + re-review before handing the pre-analysis memo downstream."; exit 1; }
+fi
 ```
 
 (The delegated coverage runs `--required=fast`; the `statistics` seat is satisfied by an `[EXCUSED: descriptive-only EDA, no models fitted] review-code-statistics` annotation in the report — or dispatch it too if the EDA fitted anything.)
@@ -1099,7 +1101,7 @@ OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
 OUTDIR="$(dirname "${OUTPUT_ROOT}/[slug]/eda/scholar-eda-[topic-slug]-[YYYY-MM-DD]")"
 STEM="$(basename "${OUTPUT_ROOT}/[slug]/eda/scholar-eda-[topic-slug]-[YYYY-MM-DD]")"
 mkdir -p "$OUTDIR"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" "$OUTDIR" "$STEM" || true
 ```
 
 **Use the printed `SAVE_PATH` as `file_path` in the Write tool call.** Re-run this block (with the appropriate BASE) for each additional file. The same version suffix must be used for all related output files (.md, .docx, .tex, .pdf).

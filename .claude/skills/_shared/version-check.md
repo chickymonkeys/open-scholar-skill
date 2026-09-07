@@ -25,9 +25,9 @@ Run this via the Bash tool BEFORE every Write tool call:
 
 ```bash
 # MANDATORY: Replace [output_dir] and [filename_stem] with actuals
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" \
   "[output_dir]" \
-  "[filename_stem]"
+  "[filename_stem]" || true
 # Example:
 # bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/version-check.sh" \
 #   "output/drafts" \

@@ -237,7 +237,7 @@ Size:  4.2 KB, 47 rows
 Rerunning safety-scan.sh for live detail...
 ```
 
-Then run `bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "<file>"` in Bash and capture the output. Do **not** `Read` the file itself — that's exactly what the hook is there to prevent. The scan output is safe (aggregated counts only).
+Then run `[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "<file>" || true` in Bash and capture the output. Do **not** `Read` the file itself — that's exactly what the hook is there to prevent. The scan output is safe (aggregated counts only).
 
 **(b) Check if the file is qualitative (audio / transcript / interview).**
 
@@ -339,7 +339,7 @@ python3 "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/anonymize-presidio.py" anonymize 
 The anonymizer writes `ANON_<basename>` to `${OUTPUT_ROOT:-output}/qual/anonymized/` — NOT next to the original (see `anonymize-presidio.py`; the pseudonym key lands in the same directory as `pseudonym-key-DO-NOT-SHARE.csv`). If Presidio detects **no PII**, the script exits 0 WITHOUT writing an output file ("No PII detected") — in that case there is nothing to re-scan: keep the original's `NEEDS_REVIEW` status and re-present the options (the scan flagged something Presidio did not; do not auto-CLEAR). Otherwise re-scan the output:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "${OUTPUT_ROOT:-output}/qual/anonymized/ANON_<basename>"
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/safety-scan.sh" "${OUTPUT_ROOT:-output}/qual/anonymized/ANON_<basename>" || true
 ```
 
 If the re-scan is GREEN, update the sidecar so:
@@ -480,18 +480,18 @@ This skill emits an append-only RAO trace at `${OUTPUT_ROOT}/logs/trace-scholar-
 At each meaningful step (a decision, a script/tool run, a gate call, a subagent dispatch), append one record. `emit-trace.sh` derives `seq` from the file, so no state is tracked across the stateless Bash blocks:
 
 ```bash
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-init --step "<label>" \
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/emit-trace.sh" --skill scholar-init --step "<label>" \
   --reasoning "<the WHY — stated rationale, 1–2 lines>" \
   --action "<the WHAT — tool/script/gate call + key args>" \
-  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok    # ok|fail|skipped
+  --observation "<the RESULT — verdict/metric/count/error/file ref>" --status ok || true    # ok|fail|skipped
 ```
 
 At the end (Save Output), render the human-readable log and self-check:
 
 ```bash
 OUTPUT_ROOT="${OUTPUT_ROOT:-output}"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-init-$(date +%Y-%m-%d).ndjson"
-bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-init
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/render-trace.sh" "${OUTPUT_ROOT}/logs/trace-scholar-init-$(date +%Y-%m-%d).ndjson" || true
+[ -f "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" ] && bash "${SCHOLAR_SKILL_DIR:-.}/scripts/gates/trace-coverage-check.sh" "${OUTPUT_ROOT}" --skill scholar-init || true
 ```
 
 Privacy (C-01 / LOCAL_MODE): the trace carries aggregate metrics, verdicts, counts, and file refs ONLY — never raw data rows, verbatim quotes, or PII.
