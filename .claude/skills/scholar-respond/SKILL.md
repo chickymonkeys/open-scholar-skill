@@ -64,14 +64,24 @@ Each mode reference loads its own companion references on demand.
 
 For MODE 1 (simulate), also read the reviewer agent profiles:
 ```bash
-cat "$SKILL_DIR/.claude/agents/peer-reviewer-quant.md"
-cat "$SKILL_DIR/.claude/agents/peer-reviewer-theory.md"
-cat "$SKILL_DIR/.claude/agents/peer-reviewer-senior.md"
+read_reviewer_profile() {
+  for candidate in \
+    "$SKILL_DIR/.agents/agents/claude/$1.md" \
+    "$SKILL_DIR/.claude/agents/$1.md"; do
+    if [ -f "$candidate" ]; then cat "$candidate"; return 0; fi
+  done
+  echo "[scholar-respond] reviewer profile $1 not found; seat runs without its profile." >&2
+  return 1
+}
+
+read_reviewer_profile peer-reviewer-quant
+read_reviewer_profile peer-reviewer-theory
+read_reviewer_profile peer-reviewer-senior
 ```
 
 If the paper involves computational methods (NLP, ML, networks, CV, ABM, LLM), also read:
 ```bash
-cat "$SKILL_DIR/.claude/agents/peer-reviewer-computational.md"
+read_reviewer_profile peer-reviewer-computational
 ```
 
 ### 0b — Reference Library Setup

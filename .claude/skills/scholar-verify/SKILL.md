@@ -90,7 +90,7 @@ fi
 
 scholar-verify reads raw analysis output files (CSVs, HTML tables, figure PDFs/PNGs) and the manuscript. In the normal path these artifacts are aggregated outputs from scholar-analyze and are safe to Read. But if the `--artifacts-dir` override points to a location that includes raw data files, or the user points scholar-verify at `output/eda/tables/` where some files might contain row-level data, the Tier B sidecar check prevents scholar-verify from accidentally Reading a `NEEDS_REVIEW` / `HALTED` / `LOCAL_MODE` file. See `_shared/tier-b-safety-gate.md` for the full policy.
 
-This step is a **no-op** when `.claude/safety-status.json` does not exist. The PreToolUse hook is the mechanical backstop either way.
+This step is a **no-op** when neither `.agents/safety-status.json` nor `.claude/safety-status.json` exists. Where the PreToolUse hook is installed it is a further backstop.
 
 ```bash
 # ── Step 0a-safety: Tier B sidecar check (discover-then-scan) ──

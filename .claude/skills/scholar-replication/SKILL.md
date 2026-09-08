@@ -49,9 +49,9 @@ fi
 
 ### 0a-safety. Data Safety Sidecar Check (Tier B)
 
-scholar-replication's TEST mode (Step 3) runs scripts against data to verify the clean-run reproducibility check. If any script references a file that scholar-init marked `NEEDS_REVIEW:*`, `HALTED`, or `LOCAL_MODE`, the test run would expose that file to the Claude Code harness via Bash → Read chains. Before enumerating artifacts, consult the sidecar for every file in `data/raw/` and refuse to proceed if anything is unsafe. See `_shared/tier-b-safety-gate.md` for the full policy.
+scholar-replication's TEST mode (Step 3) runs scripts against data to verify the clean-run reproducibility check. If any script references a file that the safety sidecar marks `NEEDS_REVIEW:*`, `HALTED`, or `LOCAL_MODE`, the test run would expose that file to the Claude Code harness via Bash → Read chains. Before enumerating artifacts, consult the sidecar for every file in `data/raw/` and refuse to proceed if anything is unsafe; the shipped example at `.agents/safety-status.example.json` shows the format. See `_shared/tier-b-safety-gate.md` for the full policy.
 
-This step is a **no-op** when `.claude/safety-status.json` does not exist. The PreToolUse hook is the mechanical backstop either way.
+This step is a **no-op** when neither `.agents/safety-status.json` nor `.claude/safety-status.json` exists. Where the PreToolUse hook is installed it is a further backstop.
 
 ```bash
 # ── Step 0a-safety: Tier B sidecar check ──
