@@ -135,7 +135,7 @@ Glob: output/drafts/draft-results-*.md → most recent
 
 This is a **code-only** review (ABSOLUTE RULE 9): the agents read scripts, codebooks, data dictionaries, and design docs — never the dataset itself. After 0a has located the scripts, this scan reads **only those scripts** (code is always safe) to surface any data files they reference that are marked restricted in the safety sidecar, so the orchestrator can list them as DO-NOT-OPEN in the review package (0d).
 
-It never reads a data file, never uses `grep -r` (so it cannot recurse into `data/` or `materials/`), and never halts the review — a project under `LOCAL_MODE`/`HALTED`/`NEEDS_REVIEW` is still reviewable at the code level, which is the whole point. The PreToolUse hook (`scripts/gates/pretooluse-data-guard.sh`) remains the mechanical backstop if any agent attempts a data Read anyway.
+It never reads a data file, never uses `grep -r` (so it cannot recurse into `data/` or `materials/`), and never halts the review — a project under `LOCAL_MODE`/`HALTED`/`NEEDS_REVIEW` is still reviewable at the code level, which is the whole point. The sidecar scan above is the actual guard; where the PreToolUse hook (`scripts/gates/pretooluse-data-guard.sh`) is installed it is a further backstop if any agent attempts a data Read anyway.
 
 ```bash
 # ── Step 0a-safety: restricted-data advisory (code-only; never reads data) ──
@@ -186,7 +186,7 @@ ADVISORY
 fi
 ```
 
-Limitation: the literal scan catches quoted single-file paths (`read_csv("data/x.csv")`); multi-arg path builders (`here::here("data","x.dta")`) and variable-built paths will not appear. That is acceptable — this scan is an advisory courtesy; ABSOLUTE RULE 9 plus the PreToolUse hook are the actual enforcement.
+Limitation: the literal scan catches quoted single-file paths (`read_csv("data/x.csv")`); multi-arg path builders (`here::here("data","x.dta")`) and variable-built paths will not appear. That is acceptable — this scan is an advisory courtesy; the sidecar check in 0a-safety and ABSOLUTE RULE 9 are the actual enforcement, and where the PreToolUse hook is installed it is a further backstop.
 
 ### 0b. Read All Scripts
 
